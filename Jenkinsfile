@@ -1,8 +1,6 @@
 pipeline {
-    agent any
-
-    tools {
-        rust 'rust-stable'
+    agent {
+        docker { image 'rust:latest' }
     }
 
     stages {
