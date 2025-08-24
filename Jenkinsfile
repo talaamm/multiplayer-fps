@@ -1,9 +1,18 @@
 pipeline {
-    agent {
-        docker { image 'rust:latest' }
-    }
+    agent any
 
     stages {
+        stage('Setup Rust') {
+            steps {
+                sh '''
+                    curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+                    export PATH="$HOME/.cargo/bin:$PATH"
+                    rustc --version
+                    cargo --version
+                '''
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -12,19 +21,28 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'cargo build --verbose'
+                sh '''
+                    export PATH="$HOME/.cargo/bin:$PATH"
+                    cargo build --verbose
+                '''
             }
         }
 
         stage('Test') {
             steps {
-                sh 'cargo test --verbose'
+                sh '''
+                    export PATH="$HOME/.cargo/bin:$PATH"
+                    cargo test --verbose
+                '''
             }
         }
 
         stage('Package') {
             steps {
-                sh 'cargo build --release'
+                sh '''
+                    export PATH="$HOME/.cargo/bin:$PATH"
+                    cargo build --release
+                '''
                 archiveArtifacts artifacts: 'target/release/*', fingerprint: true
             }
         }
