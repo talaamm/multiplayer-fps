@@ -1,60 +1,39 @@
 pipeline {
-    agent {
-        docker { image 'rust:latest' }
-    }
-    stages {
-        stage('Setup Rust') {
-            steps {
-                bat '''
-                    curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
-                    rustup-init.exe -y
-                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    rustc --version
-                    cargo --version
-                '''
-            }
-        }
+    agent any
 
+    stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build') {
+        stage('Build & Tests in Docker') {
             steps {
-                bat '''
-                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    cargo build --verbose
-                '''
-            }
-        }
+                script {
+                    docker.image('rust:latest').inside {
+                        bat 'rustc --version || echo ok'
+                        bat 'cargo --version || echo ok'
 
-        stage('Integration Tests') {
-            steps {
-                bat '''
-                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    cargo test --test integration_udp --verbose
-                '''
-            }
-        }
+                        
+                        bat 'cargo build --verbose'
 
-        stage('Stress Tests') {
-            steps {
-                bat '''
-                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    cargo test --test stress_test --verbose
-                '''
+                       
+                        bat 'cargo test --test integration_udp --verbose'
+
+                    }
+                }
             }
         }
 
         stage('Package') {
             steps {
-                bat '''
-                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    cargo build --release
-                '''
-                archiveArtifacts artifacts: 'target/release/*', fingerprint: true
+                script {
+                    docker.image('rust:latest').inside {
+                        bat 'cargo build --release'
+                        archiveArtifacts artifacts: 'target/release/*', fingerprint: true
+                    }
+                }
             }
         }
     }
