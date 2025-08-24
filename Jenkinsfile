@@ -4,9 +4,10 @@ pipeline {
     stages {
         stage('Setup Rust') {
             steps {
-                sh '''
-                    curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-                    export PATH="$HOME/.cargo/bin:$PATH"
+                bat '''
+                    curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
+                    rustup-init.exe -y
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
                     rustc --version
                     cargo --version
                 '''
@@ -21,8 +22,8 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh '''
-                    export PATH="$HOME/.cargo/bin:$PATH"
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
                     cargo build --verbose
                 '''
             }
@@ -30,8 +31,8 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh '''
-                    export PATH="$HOME/.cargo/bin:$PATH"
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
                     cargo test --verbose
                 '''
             }
@@ -39,8 +40,8 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh '''
-                    export PATH="$HOME/.cargo/bin:$PATH"
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
                     cargo build --release
                 '''
                 archiveArtifacts artifacts: 'target/release/*', fingerprint: true
