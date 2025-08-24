@@ -47,7 +47,7 @@ nc -u 127.0.0.1 34254
 * Send an Input update (replace 1 with your real player_id):
 
 ```json
-{"type":"Input","data":{"player_id":1,"x":3.0,"y":4.0,"angle":1.57,"action":1}}
+{"type":"Input","data":{"player_id":1,"x":5.0,"y":14.0,"angle":1.57,"action":1}}
 ```
 
 * You should see periodic Snapshot messages listing all players (including you).
