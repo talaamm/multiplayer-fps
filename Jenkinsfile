@@ -30,11 +30,20 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Integration Tests') {
             steps {
                 bat '''
                     set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
-                    cargo test --verbose
+                    cargo test --test integration_udp --verbose
+                '''
+            }
+        }
+
+        stage('Stress Tests') {
+            steps {
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
+                    cargo test --test stress_test --verbose
                 '''
             }
         }
@@ -52,7 +61,7 @@ pipeline {
 
     post {
         success {
-            echo '✅ Build & Tests Passed!'
+            echo '✅ Build, Integration & Stress Tests Passed!'
         }
         failure {
             echo '❌ Build or Tests Failed.'
