@@ -1,6 +1,7 @@
 pipeline {
-    agent any
-
+    agent {
+        docker { image 'rust:latest' }
+    }
     stages {
         stage('Setup Rust') {
             steps {
