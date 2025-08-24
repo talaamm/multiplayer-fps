@@ -2,8 +2,19 @@ pipeline {
     agent {
         docker { image 'rust:latest' }
     }
-
     stages {
+        stage('Setup Rust') {
+            steps {
+                bat '''
+                    curl -sSf -o rustup-init.exe https://win.rustup.rs/x86_64
+                    rustup-init.exe -y
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
+                    rustc --version
+                    cargo --version
+                '''
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -12,19 +23,28 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'cargo build --verbose'
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
+                    cargo build --verbose
+                '''
             }
         }
 
         stage('Test') {
             steps {
-                sh 'cargo test --verbose'
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
+                    cargo test --verbose
+                '''
             }
         }
 
         stage('Package') {
             steps {
-                sh 'cargo build --release'
+                bat '''
+                    set PATH=%USERPROFILE%\\.cargo\\bin;%PATH%
+                    cargo build --release
+                '''
                 archiveArtifacts artifacts: 'target/release/*', fingerprint: true
             }
         }

@@ -1,0 +1,17 @@
+# Excludes all Rust build artifacts and compilation outputs
+/target
+
+Cargo.lock
+
+# Excludes IDE-specific configuration files
+.vscode/
+.idea/
+
+# Excludes OS-specific metadata files
+.DS_Store
+Thumbs.db
+
+# Excludes backup and temporary files
+*.rs.bk
+*.log
+*.tmp
