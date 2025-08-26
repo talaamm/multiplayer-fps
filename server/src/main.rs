@@ -70,7 +70,7 @@ fn main() {
 }
 // Multiplayer server implementation (default entry)
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main_multiplayer() -> anyhow::Result<()> {
     // ---- Networking setup ----
     let bind_addr = std::env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:34254".to_string());
     let broadcast_hz: u64 = 20;
