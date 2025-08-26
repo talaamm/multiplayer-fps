@@ -22,6 +22,7 @@ fn render_with_player(maze: &Maze, px: usize, py: usize) {
 
 fn main() {
     let mut lvl = 1;
+
     // choose a level
     let mut maze = Maze::load_level(lvl);
 
@@ -67,9 +68,9 @@ fn main() {
         }
     }
 }
-// Multiplayer server implementation
+// Multiplayer server implementation (default entry)
 #[tokio::main]
-async fn main_multiplayer() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // ---- Networking setup ----
     let bind_addr = std::env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:34254".to_string());
     let broadcast_hz: u64 = 20;
@@ -165,12 +166,9 @@ async fn main_multiplayer() -> anyhow::Result<()> {
                 st.try_apply_input(input.player_id, input.x, input.y, input.angle);
             }
 
-            Ok(protocol::ClientToServer::Shoot(ev)) => {
-                // No-op for now, could broadcast effects.
-                let st = state.lock();
-                if st.players.contains_key(&ev.player_id) {
-                    // TODO: handle shooting
-                }
+            Ok(protocol::ClientToServer::Shoot(_ev)) => {
+                // Shooting not implemented on the server yet (Amro/Tala scope)
+                // Intentionally no-op to keep the server compiling and running
             }
 
             Ok(protocol::ClientToServer::Leave(leave)) => {

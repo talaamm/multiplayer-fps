@@ -11,6 +11,7 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 
+
 # Excludes backup and temporary files
 *.rs.bk
 *.log
