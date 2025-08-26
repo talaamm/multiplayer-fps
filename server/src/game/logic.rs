@@ -187,7 +187,7 @@ impl Maze {
         
         // Ensure start and exit are accessible
         maze.set_path(1, 1);
-        maze.set_exit(maze.width - 2, maze.height - 2);
+        maze.set_exit(maze.width - 3, maze.height - 3);
         
         // Add some additional complexity with extra dead ends
         Maze::add_extra_dead_ends(&mut maze);

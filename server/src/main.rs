@@ -20,9 +20,11 @@ fn render_with_player(maze: &Maze, px: usize, py: usize) {
     }
 }
 
-fn main_tui() {
+fn main() {
+    let mut lvl = 1;
+
     // choose a level
-    let maze = Maze::load_level(2);
+    let mut maze = Maze::load_level(lvl);
 
     // Test multiplayer support
     maze.test_multiplayer_support();
@@ -39,8 +41,14 @@ fn main_tui() {
         render_with_player(&maze, p.x, p.y);
 
         if p.at_exit(&maze) {
-            println!("\nYou reached the EXIT! 🎉");
-            break;
+            lvl += 1;
+            maze = Maze::load_level(lvl);
+            if lvl > 3 {
+                println!("\nYou reached the EXIT! 🎉");
+                break;
+            }
+            // let maze = Maze::load_level(lvl);
+            let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((0, 0));
         }
 
         println!("\nPos: ({}, {}). Move [W/A/S/D], Quit [Q]: ", p.x, p.y);
