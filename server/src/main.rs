@@ -41,13 +41,16 @@ fn main() {
 
         if p.at_exit(&maze) {
             lvl += 1;
-            maze = Maze::load_level(lvl);
             if lvl > 3 {
                 println!("\nYou reached the EXIT! 🎉");
                 break;
             }
-            // let maze = Maze::load_level(lvl);
-            let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((0, 0));
+            maze = Maze::load_level(lvl);
+            // Get a new spawn point for the new level
+            let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((1, 1));
+            p.x = sx;
+            p.y = sy;
+            println!("\nLevel {} loaded! Starting at position ({}, {})", lvl, sx, sy);
         }
 
         println!("\nPos: ({}, {}). Move [W/A/S/D], Quit [Q]: ", p.x, p.y);
