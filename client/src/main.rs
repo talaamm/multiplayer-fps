@@ -141,9 +141,9 @@ fn draw_minimap(level: &Level, player: &Player, others: &[RemotePlayer]) {
         for x in 0..level.w {
             let t = level.tiles[y * level.w + x];
             let c = match t {
-                1 => DARKGREEN,  // Wall
+                1 => WHITE,  // Wall
                 2 => RED,        // Exit
-                _ => WHITE,      // Path
+                _ => DARKGREEN,      // Path
             };
             draw_rectangle(
                 pad + x as f32 * map_scale,
@@ -399,9 +399,11 @@ fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usi
     let fps = macroquad::time::get_fps();
     let ping_txt = match rtt_ms { Some(v) => format!("{} ms", v), None => "--".to_string() };
     let txt = format!(
-        "FPS: {fps}   Ping: {ping_txt}   Players: {player_count}\nUser: {username}   Level: {level_id}\nWASD move, Mouse look"
+        "Ping: {ping_txt}   Players: {player_count}\nUser: {username}   Level: {level_id}\nWASD move, Mouse look"
     );
+    let fpstxt = format!("FPS: {fps}");
     draw_text(&txt, 10.0, screen_height() - 40.0, 20.0, WHITE);
+    draw_text(&fpstxt, 10.0, screen_height() - 20.0, 20.0, WHITE);
     
     // Debug: Show key states
     let w_pressed = if is_key_down(KeyCode::W) { "W" } else { " " };
@@ -555,23 +557,41 @@ async fn main() {
                 draw_text(hint, bx, by2+40.0, 20.0, GRAY);
 
                 // Handle input
-                if is_key_pressed(KeyCode::Tab) { input_focus = 1 - input_focus; }
-                if let Some(c) = get_char_pressed() {
-                    if input_focus==0 { server_addr.push(c); } else { username.push(c); }
+                while let Some(c) = get_char_pressed() {
+                    if c == '\t' {
+                        input_focus = 1 - input_focus;
+                        continue;
+                    }
+                    if c.is_control() { continue; }
+                    if input_focus == 0 {
+                        server_addr.push(c);
+                    } else {
+                        username.push(c);
+                    }
                 }
+
                 if is_key_pressed(KeyCode::Backspace) {
                     if input_focus==0 { server_addr.pop(); } else { username.pop(); }
                 }
+
                 if is_key_pressed(KeyCode::Enter) {
-                    if let Ok(n) = network::NetClient::start(server_addr.clone(), username.clone()) {
-                        net = Some(n);
-                        app_state = AppState::Playing;
+                    server_addr.retain(|ch| !ch.is_control());
+                    username.retain(|ch| !ch.is_control());
+                    let addr = server_addr.trim();
+                    let name = username.trim();
+
+                    if input_focus == 0 && name.is_empty() {
+                        input_focus = 1;
+                    } else if !addr.is_empty() && !name.is_empty() {
+                        if let Ok(n) = network::NetClient::start(addr.to_string(), name.to_string()) {
+                            net = Some(n);
+                            app_state = AppState::Playing;
+                        }
                     }
                 }
             }
-            AppState::Playing => {
-                draw_world(&level, &player, &others);
-            }
+            AppState::Playing => { draw_world(&level, &player, &others); 
+            } 
         }
 
         if let AppState::Playing = app_state {
