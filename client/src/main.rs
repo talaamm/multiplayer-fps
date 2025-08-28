@@ -399,9 +399,11 @@ fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usi
     let fps = macroquad::time::get_fps();
     let ping_txt = match rtt_ms { Some(v) => format!("{} ms", v), None => "--".to_string() };
     let txt = format!(
-        "FPS: {fps}   Ping: {ping_txt}   Players: {player_count}\nUser: {username}   Level: {level_id}\nWASD move, Mouse look"
+        "Ping: {ping_txt}   Players: {player_count}\nUser: {username}   Level: {level_id}\nWASD move, Mouse look"
     );
+    let fpstxt = format!("FPS: {fps}");
     draw_text(&txt, 10.0, screen_height() - 40.0, 20.0, WHITE);
+    draw_text(&fpstxt, 10.0, screen_height() - 20.0, 20.0, WHITE);
     
     // Debug: Show key states
     let w_pressed = if is_key_down(KeyCode::W) { "W" } else { " " };
@@ -591,7 +593,7 @@ async fn main() {
             AppState::Playing => { draw_world(&level, &player, &others); 
             } 
         }
-        
+
         if let AppState::Playing = app_state {
             let input = gather_input(mouse_captured);
             
