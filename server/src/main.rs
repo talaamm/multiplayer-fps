@@ -1,6 +1,6 @@
 mod game { pub mod logic; }
 use game::logic::{Maze, Player, Cell};
-use std::io::{self, Read};
+use std::io::Read;
 
 fn render_with_player(maze: &Maze, px: usize, py: usize) {
     for y in 0..maze.height {
@@ -20,7 +20,7 @@ fn render_with_player(maze: &Maze, px: usize, py: usize) {
     }
 }
 
-fn main() {
+fn main_single_player() {
     let mut lvl = 1;
 
     // choose a level
@@ -58,7 +58,7 @@ fn main() {
 
         // non-blocking single-char read (simple blocking read fallback)
         let mut buf = [0u8; 1];
-        if io::stdin().read_exact(&mut buf).is_err() { break; }
+        if std::io::stdin().read_exact(&mut buf).is_err() { break; }
         let c = (buf[0] as char).to_ascii_lowercase();
 
         match c {
@@ -71,8 +71,21 @@ fn main() {
         }
     }
 }
-// Multiplayer server implementation (default entry)
+
 #[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Check if user wants single-player mode
+    let args: Vec<String> = std::env::args().collect();
+    
+    if args.len() > 1 && args[1] == "--single-player" {
+        main_single_player();
+        return Ok(());
+    }
+    
+    // Run multiplayer server by default
+    main_multiplayer().await
+}
+// Multiplayer server implementation
 async fn main_multiplayer() -> anyhow::Result<()> {
     // ---- Networking setup ----
     let bind_addr = std::env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:34254".to_string());
@@ -108,6 +121,41 @@ async fn main_multiplayer() -> anyhow::Result<()> {
             let mut ticker = tokio::time::interval(std::time::Duration::from_millis(1000 / broadcast_hz));
             loop {
                 ticker.tick().await;
+
+                // Check for exit completion and handle level progression
+                let level_advanced = {
+                    let mut st = state_for_broadcast.lock();
+                    if let Some(completed_level) = st.check_exits() {
+                        println!("DEBUG: Exit detected for level {}, calling advance_level()", completed_level);
+                        st.advance_level();
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                // If level advanced, send new level data to all clients
+                if level_advanced {
+                    println!("DEBUG: Level advanced, sending new level data to clients");
+                    let new_level_data = {
+                        let st = state_for_broadcast.lock();
+                        st.wire_level.clone()
+                    };
+                    
+                    let level_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
+                        player_id: 0, // Special ID for level change
+                        level: new_level_data,
+                    });
+                    
+                    let addrs: Vec<std::net::SocketAddr> = {
+                        let st = state_for_broadcast.lock();
+                        st.addr_by_player.values().copied().collect()
+                    };
+                    println!("DEBUG: Sending level change to {} clients", addrs.len());
+                    for addr in addrs {
+                        let _ = tx_out_broadcast.send((addr, level_msg.clone()));
+                    }
+                }
 
                 let snapshot = {
                     let st = state_for_broadcast.lock();
@@ -312,6 +360,57 @@ impl ServerState {
             } else {
                 // Reject invalid move; optional: snap back or ignore silently
                 // (Here we just ignore; client will be corrected by snapshots.)
+            }
+        }
+    }
+
+    /// Checks if any player has reached the exit and handles level progression
+    fn check_exits(&mut self) -> Option<u32> {
+        for (player_id, player) in self.players.iter() {
+            let gx = player.pos_x.floor() as usize;
+            let gy = player.pos_y.floor() as usize;
+            
+            println!("DEBUG: Checking player {} at ({}, {}) - maze size: {}x{}", 
+                     player_id, gx, gy, self.logic_maze.width, self.logic_maze.height);
+            
+            if gx < self.logic_maze.width && gy < self.logic_maze.height {
+                let cell = &self.logic_maze.grid[gy][gx];
+                println!("DEBUG: Player {} at cell type: {:?}", player_id, cell);
+                if matches!(cell, Cell::Exit) {
+                    println!("Player {} reached the exit! Level {} completed!", player_id, self.logic_maze.level_id);
+                    return Some(self.logic_maze.level_id);
+                }
+            }
+        }
+        None
+    }
+
+    /// Advances to the next level and resets all players
+    fn advance_level(&mut self) {
+        let current_level = self.logic_maze.level_id;
+        let next_level = if current_level < 3 { current_level + 1 } else { 1 };
+        
+        println!("Advancing from level {} to level {}", current_level, next_level);
+        
+        // Load new maze
+        self.logic_maze = Maze::load_level(next_level as u8);
+        
+        // Update wire level
+        self.wire_level = maze_to_protocol(next_level, &self.logic_maze);
+        
+        // Reset spawn cursor
+        self.spawn_cursor = 0;
+        
+        // Respawn all players at new spawn points
+        let player_count = self.players.len();
+        for i in 0..player_count {
+            let (sx, sy) = self.next_spawn();
+            if let Some((player_id, player)) = self.players.iter_mut().nth(i) {
+                player.pos_x = sx;
+                player.pos_y = sy;
+                player.angle = 0.0;
+                player.health = 100; // Reset health
+                println!("Respawned player {} at ({}, {})", player_id, sx, sy);
             }
         }
     }

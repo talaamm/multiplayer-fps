@@ -2,7 +2,7 @@ use macroquad::prelude::*;
 use protocol;
 mod network;
 
-// ---------- Local Level definition (client-side for fallback) ----------
+// ---------- Server-provided Level definition ----------
 #[derive(Clone, Debug)]
 struct Level {
     w: usize,
@@ -30,83 +30,6 @@ impl Level {
     // Check if position is exit
     fn is_exit(&self, x: i32, y: i32) -> bool {
         self.at(x, y) == 2
-    }
-
-    // Fallback level in case server doesn't provide one
-    fn fallback() -> Self {
-        let w = 15usize; let h = 15usize;
-        let mut tiles = vec![1u8; w * h];
-        // carve outer ring and some paths (L-shape + branches)
-        let mut carve = |x: usize, y: usize| tiles[y * w + x] = 0;
-        for x in 1..=13 { carve(x, 1); }
-        for y in 1..=13 { carve(13, y); }
-        for x in 3..12 { carve(x, 5); carve(x, 9); }
-        for y in 3..12 { carve(5, y); carve(9, y); }
-        for (x,y) in [(3,3),(4,4),(5,5),(11,3),(10,4),(9,5),(7,7),(8,7),(8,8),(7,8),
-                      (2,7),(2,8),(2,9),(12,7),(12,8),(12,9),(4,7),(4,8),(4,9),
-                      (10,7),(10,8),(10,9),(6,3),(6,4),(8,3),(8,4)] { carve(x,y); }
-        // Ensure starting area is clear
-        carve(1, 1); carve(1, 2); carve(2, 1); carve(2, 2);
-        
-        // Add exit point for fallback level
-        tiles[13 * w + 13] = 2; // Exit at (13, 13)
-        
-        Self::new(w, h, tiles)
-    }
-    
-    // Create level with proper size for each level
-    fn create_level(level_id: u8) -> Self {
-        match level_id {
-            1 => {
-                let w = 15usize; let h = 15usize;
-                let mut tiles = vec![1u8; w * h];
-                let mut carve = |x: usize, y: usize| tiles[y * w + x] = 0;
-                for x in 1..=13 { carve(x, 1); }
-                for y in 1..=13 { carve(13, y); }
-                for x in 3..12 { carve(x, 5); carve(x, 9); }
-                for y in 3..12 { carve(5, y); carve(9, y); }
-                for (x,y) in [(3,3),(4,4),(5,5),(11,3),(10,4),(9,5),(7,7),(8,7),(8,8),(7,8),
-                              (2,7),(2,8),(2,9),(12,7),(12,8),(12,9),(4,7),(4,8),(4,9),
-                              (10,7),(10,8),(10,9),(6,3),(6,4),(8,3),(8,4)] { carve(x,y); }
-                carve(1, 1); carve(1, 2); carve(2, 1); carve(2, 2);
-                tiles[13 * w + 13] = 2; // Exit at (13, 13)
-                Self::new(w, h, tiles)
-            }
-            2 => {
-                let w = 25usize; let h = 25usize;
-                let mut tiles = vec![1u8; w * h];
-                let mut carve = |x: usize, y: usize| tiles[y * w + x] = 0;
-                // Create a larger maze for level 2
-                for x in 1..24 { carve(x, 1); carve(x, 7); carve(x, 13); carve(x, 19); carve(x, 23); }
-                for y in 1..24 { carve(1, y); carve(7, y); carve(13, y); carve(19, y); carve(23, y); }
-                for (x,y) in [(3,3),(3,4),(3,5),(4,3),(5,3),(21,3),(21,4),(21,5),(20,5),(19,5),
-                              (9,9),(9,10),(9,11),(10,9),(11,9),(8,11),(7,11),(15,9),(15,10),(15,11),
-                              (16,9),(17,9),(14,11),(13,11),(3,21),(3,22),(4,21),(5,21),(21,21),(21,22),
-                              (20,21),(19,21)] { carve(x,y); }
-                carve(1, 1); carve(1, 2); carve(2, 1); carve(2, 2);
-                tiles[23 * w + 23] = 2; // Exit at (23, 23)
-                Self::new(w, h, tiles)
-            }
-            3 => {
-                let w = 40usize; let h = 40usize;
-                let mut tiles = vec![1u8; w * h];
-                let mut carve = |x: usize, y: usize| tiles[y * w + x] = 0;
-                // Create a large maze for level 3
-                for y in (1..h-1).step_by(2) {
-                    for x in 1..w-1 { carve(x, y); }
-                }
-                for x in (1..w-1).step_by(2) {
-                    for y in 1..h-1 { carve(x, y); }
-                }
-                for (x,y) in [(5,5),(6,5),(7,5),(8,5),(9,5),(15,15),(16,15),(17,15),(18,15),
-                              (25,25),(26,25),(27,25),(35,35),(36,35),(10,10),(11,10),(12,10),
-                              (30,30),(31,30),(32,30)] { carve(x,y); }
-                carve(1, 1); carve(1, 2); carve(2, 1); carve(2, 2);
-                tiles[37 * w + 37] = 2; // Exit at (37, 37)
-                Self::new(w, h, tiles)
-            }
-            _ => Self::fallback()
-        }
     }
 }
 
@@ -395,7 +318,7 @@ fn gather_input(mouse_captured: bool) -> InputState {
 }
 
 // ---------- HUD ----------
-fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usize, mouse_captured: bool, player_pos: Vec2, has_moved_locally: bool, level: &Level, exit_reached: bool, exit_reached_time: f32, client_controlled_level: bool) {
+fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usize, mouse_captured: bool, player_pos: Vec2, has_moved_locally: bool, level: &Level, exit_reached: bool, exit_reached_time: f32) {
     let fps = macroquad::time::get_fps();
     let ping_txt = match rtt_ms { Some(v) => format!("{} ms", v), None => "--".to_string() };
     let txt = format!(
@@ -430,9 +353,7 @@ fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usi
     let local_state = if has_moved_locally { "LOCAL" } else { "SERVER" };
     draw_text(&format!("Control: {}", local_state), 10.0, screen_height() - 160.0, 16.0, YELLOW);
     
-    // Debug: Show level control
-    let level_control = if client_controlled_level { "CLIENT" } else { "SERVER" };
-    draw_text(&format!("Level Control: {}", level_control), 10.0, screen_height() - 200.0, 16.0, YELLOW);
+
     
     // Check if near exit
     let player_x = player_pos.x.floor() as i32;
@@ -481,7 +402,7 @@ fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
 // ---------- Main ----------
 #[macroquad::main("Maze Wars — Client (Graphics & Rendering)")]
 async fn main() {
-    let mut level = Level::fallback();
+    let mut level: Option<Level> = None;
     let mut level_id: u8 = 1;
     let mut player = Player::new(1.5, 1.5, 0.0); // Start in a safer position
     let mut mouse_captured = false;
@@ -514,7 +435,6 @@ async fn main() {
     // Level progression tracking
     let mut exit_reached_time: f32 = 0.0;
     let mut exit_reached = false;
-    let mut client_controlled_level = false; // Flag to prevent server override
 
     loop {
         let dt = macroquad::time::get_frame_time();
@@ -590,63 +510,39 @@ async fn main() {
                     }
                 }
             }
-            AppState::Playing => { draw_world(&level, &player, &others); 
+            AppState::Playing => { 
+                if let Some(ref level) = level {
+                    draw_world(level, &player, &others);
+                }
             } 
         }
 
         if let AppState::Playing = app_state {
             let input = gather_input(mouse_captured);
             
-            // Apply local movement first
-            move_player(&level, &mut player, &input, dt);
-            
-            // Check if player reached exit
-            let player_x = player.pos.x.floor() as i32;
-            let player_y = player.pos.y.floor() as i32;
-            if level.is_exit(player_x, player_y) {
-                if !exit_reached {
-                    exit_reached = true;
-                    exit_reached_time = 0.0;
-                    println!("🎉 EXIT REACHED! Level {} completed! Player at ({}, {})", level_id, player_x, player_y);
-                }
-            } else {
-                if exit_reached {
-                    println!("Left exit area");
-                }
-                exit_reached = false;
+            // Apply local movement first (only if we have a level)
+            if let Some(ref level) = level {
+                move_player(level, &mut player, &input, dt);
             }
-            
-            // Handle level progression
-            if exit_reached {
-                exit_reached_time += dt;
-                // Only print timer every 0.5 seconds to reduce spam
-                if (exit_reached_time * 10.0).round() as i32 % 5 == 0 {
-                    println!("Exit timer: {:.1}s / 2.0s", exit_reached_time);
-                }
-                if exit_reached_time > 2.0 { // Wait 2 seconds on exit
-                    // Progress to next level
-                    let next_level = if level_id < 3 { level_id + 1 } else { 1 };
-                    level_id = next_level;
-                    
-                    // Reset player position to spawn
-                    player.pos = vec2(1.5, 1.5);
-                    self_target_pos = player.pos;
-                    
-                    // Reset movement tracking
-                    has_moved_locally = false;
-                    last_movement_time = 0.0;
+                        // Check if player reached exit (only if we have a level)
+            if let Some(ref level) = level {
+                let player_x = player.pos.x.floor() as i32;
+                let player_y = player.pos.y.floor() as i32;
+                if level.is_exit(player_x, player_y) {
+                    if !exit_reached {
+                        exit_reached = true;
+                        exit_reached_time = 0.0;
+                        println!("🎉 EXIT REACHED! Level {} completed! Player at ({}, {})", level_id, player_x, player_y);
+                    }
+                } else {
+                    if exit_reached {
+                        println!("Left exit area");
+                    }
                     exit_reached = false;
-                    exit_reached_time = 0.0;
-                    
-                    println!("🚀 Progressing to Level {}!", level_id);
-                    
-                    // Set client-controlled flag
-                    client_controlled_level = true;
-                    
-                    // Load new level with proper size
-                    level = Level::create_level(level_id);
                 }
             }
+            
+            // Level progression is handled by the server
             
             // Track if we've moved locally
             let is_moving = input.forward.abs() > 0.1 || input.strafe.abs() > 0.1;
@@ -674,12 +570,14 @@ async fn main() {
             while let Ok(msg) = net.rx_incoming.try_recv() {
                 match msg {
                     protocol::ServerToClient::Accept(acc) => {
-                        // Only accept server level if we haven't started client-controlled progression
-                        if !client_controlled_level {
-                            level = level_from_maze_level(&acc.level);
-                            level_id = acc.level.level_id as u8;
+                        // Accept server level data
+                        level = Some(level_from_maze_level(&acc.level));
+                        level_id = acc.level.level_id as u8;
+                        
+                        // Only set player ID if it's not a level change (player_id != 0)
+                        if acc.player_id != 0 {
+                            my_player_id = Some(acc.player_id);
                         }
-                        my_player_id = Some(acc.player_id);
                         
                         // Reset movement tracking when joining a new server/level
                         has_moved_locally = false;
@@ -743,9 +641,11 @@ async fn main() {
         }
 
         if let AppState::Playing = app_state {
-            draw_minimap(&level, &player, &others);
-            let count = others.len() + 1;
-            draw_hud(level_id, ping_state.map(|p| p.rtt_ms), &username, count, mouse_captured, player.pos, has_moved_locally, &level, exit_reached, exit_reached_time, client_controlled_level);
+            if let Some(ref level) = level {
+                draw_minimap(level, &player, &others);
+                let count = others.len() + 1;
+                draw_hud(level_id, ping_state.map(|p| p.rtt_ms), &username, count, mouse_captured, player.pos, has_moved_locally, level, exit_reached, exit_reached_time);
+            }
         }
 
         // Hint to (re)capture the mouse
