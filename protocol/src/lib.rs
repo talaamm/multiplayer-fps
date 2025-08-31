@@ -7,7 +7,6 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 pub enum Action {
     None = 0,  // No action
     Move = 1,  // Movement input
-    Shoot = 2, // Shooting event
     Ping = 3,  // Ping for latency measurement
 }
 
@@ -70,16 +69,6 @@ pub struct InputUpdate {
     pub action: Action,
 }
 
-/// Sent by client to indicate a shooting event.
-/// Contains origin and direction.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ShootEvent {
-    pub player_id: u64,
-    pub origin_x: f32,
-    pub origin_y: f32,
-    pub angle: f32,
-}
-
 /// Sent by client to notify server of leaving the game.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaveNotice {
@@ -114,7 +103,6 @@ pub struct Snapshot {
 pub enum ClientToServer {
     Join(JoinRequest),
     Input(InputUpdate),
-    Shoot(ShootEvent),
     Leave(LeaveNotice),
     Ping(Ping),
 }

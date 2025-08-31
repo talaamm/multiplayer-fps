@@ -366,6 +366,11 @@ fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usi
             draw_text("🎯 EXIT REACHED!", 10.0, screen_height() - 180.0, 20.0, RED);
         }
     }
+    
+    // Show level change notification
+    if exit_reached && exit_reached_time > 0.5 {
+        draw_text("🚀 ADVANCING TO NEXT LEVEL...", 10.0, screen_height() - 200.0, 20.0, GREEN);
+    }
 }
 
 // ---------- Remote players ----------
@@ -397,6 +402,37 @@ fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
     }
     
     Level::new(w, h, tiles)
+}
+
+// Find a safe spawn position in the level
+fn find_safe_spawn(level: &Level) -> Vec2 {
+    // Try common safe spawn positions first
+    let safe_positions = [
+        vec2(1.5, 1.5),   // Top-left corner
+        vec2(2.5, 1.5),   // Top-left + 1
+        vec2(1.5, 2.5),   // Top-left + 1 down
+        vec2(2.5, 2.5),   // Top-left + 1 diagonal
+    ];
+    
+    for &pos in &safe_positions {
+        let x = pos.x.floor() as i32;
+        let y = pos.y.floor() as i32;
+        if level.is_walkable(x, y) {
+            return pos;
+        }
+    }
+    
+    // If no safe position found, search for the first walkable tile
+    for y in 0..level.h {
+        for x in 0..level.w {
+            if level.is_walkable(x as i32, y as i32) {
+                return vec2(x as f32 + 0.5, y as f32 + 0.5);
+            }
+        }
+    }
+    
+    // Fallback to a safe default
+    vec2(1.5, 1.5)
 }
 
 // ---------- Main ----------
@@ -579,11 +615,34 @@ async fn main() {
                             my_player_id = Some(acc.player_id);
                         }
                         
-                        // Reset movement tracking when joining a new server/level
-                        has_moved_locally = false;
-                        last_movement_time = 0.0;
-                        exit_reached = false;
-                        exit_reached_time = 0.0;
+                        // If this is a level change (player_id == 0), reset player position and state
+                        if acc.player_id == 0 {
+                            println!("🎯 Level changed to {}! Resetting player position...", level_id);
+                            
+                            // Find a safe spawn position in the new level
+                            let new_level = level_from_maze_level(&acc.level);
+                            let safe_spawn = find_safe_spawn(&new_level);
+                            player.pos = safe_spawn;
+                            player.dir = 0.0; // Reset direction
+                            
+                            // Clear other players list for new level
+                            others.clear();
+                            
+                            // Reset movement tracking for new level
+                            has_moved_locally = false;
+                            last_movement_time = 0.0;
+                            exit_reached = false;
+                            exit_reached_time = 0.0;
+                            
+                            // Reset reconciliation target
+                            self_target_pos = player.pos;
+                        } else {
+                            // Reset movement tracking when joining a new server
+                            has_moved_locally = false;
+                            last_movement_time = 0.0;
+                            exit_reached = false;
+                            exit_reached_time = 0.0;
+                        }
                     }
                     protocol::ServerToClient::Snapshot(snap) => {
                         // Build other players list (excluding self if known)
