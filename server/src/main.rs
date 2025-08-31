@@ -1,5 +1,7 @@
-mod game { pub mod logic; }
-use game::logic::{Maze, Player, Cell};
+mod game {
+    pub mod logic;
+}
+use game::logic::{Cell, Maze, Player};
 use std::io::Read;
 
 fn render_with_player(maze: &Maze, px: usize, py: usize) {
@@ -51,14 +53,19 @@ fn main_single_player() {
             let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((1, 1));
             p.x = sx;
             p.y = sy;
-            println!("\nLevel {} loaded! Starting at position ({}, {})", lvl, sx, sy);
+            println!(
+                "\nLevel {} loaded! Starting at position ({}, {})",
+                lvl, sx, sy
+            );
         }
 
         println!("\nPos: ({}, {}). Move [W/A/S/D], Quit [Q]: ", p.x, p.y);
 
         // non-blocking single-char read (simple blocking read fallback)
         let mut buf = [0u8; 1];
-        if std::io::stdin().read_exact(&mut buf).is_err() { break; }
+        if std::io::stdin().read_exact(&mut buf).is_err() {
+            break;
+        }
         let c = (buf[0] as char).to_ascii_lowercase();
 
         match c {
@@ -76,12 +83,12 @@ fn main_single_player() {
 async fn main() -> anyhow::Result<()> {
     // Check if user wants single-player mode
     let args: Vec<String> = std::env::args().collect();
-    
+
     if args.len() > 1 && args[1] == "--single-player" {
         main_single_player();
         return Ok(());
     }
-    
+
     // Run multiplayer server by default
     main_multiplayer().await
 }
@@ -95,14 +102,18 @@ async fn main_multiplayer() -> anyhow::Result<()> {
     println!("Server listening on {}", socket.local_addr()?);
 
     // ---- Load your maze + make wire level ----
-    let logic_maze = Maze::load_level(1);   // Start at level 1
+    let logic_maze = Maze::load_level(1); // Start at level 1
     // logic_maze.print_ascii(); // debug if you want
     let wire_level = maze_to_protocol(1, &logic_maze);
 
-    let state = std::sync::Arc::new(parking_lot::Mutex::new(ServerState::new(logic_maze, wire_level.clone())));
+    let state = std::sync::Arc::new(parking_lot::Mutex::new(ServerState::new(
+        logic_maze,
+        wire_level.clone(),
+    )));
 
     // ---- Outbound channel + sender task ----
-    let (tx_out, mut rx_out) = tokio::sync::mpsc::unbounded_channel::<(std::net::SocketAddr, protocol::ServerToClient)>();
+    let (tx_out, mut rx_out) =
+        tokio::sync::mpsc::unbounded_channel::<(std::net::SocketAddr, protocol::ServerToClient)>();
     {
         let socket_send = std::sync::Arc::clone(&socket);
         tokio::spawn(async move {
@@ -119,10 +130,11 @@ async fn main_multiplayer() -> anyhow::Result<()> {
         let state_for_broadcast = std::sync::Arc::clone(&state);
         let tx_out_broadcast = tx_out.clone();
         tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(std::time::Duration::from_millis(1000 / broadcast_hz));
+            let mut ticker =
+                tokio::time::interval(std::time::Duration::from_millis(1000 / broadcast_hz));
             let mut last_level_check = std::time::Instant::now();
             let level_check_cooldown = std::time::Duration::from_secs(2); // Only check every 2 seconds
-            
+
             loop {
                 ticker.tick().await;
 
@@ -133,8 +145,17 @@ async fn main_multiplayer() -> anyhow::Result<()> {
                         last_level_check = now;
                         let mut st = state_for_broadcast.lock();
                         if let Some(completed_level) = st.check_exits() {
-                            println!("🎯 Level {} completed! Advancing to next level...", completed_level);
-                            st.advance_level();
+                            println!(
+                                "🎯 Level {} completed! Advancing to next level...",
+                                completed_level
+                            );
+                            /*If the server prints level_id = 3 but the client still sees 2, the bug is in the protocol serialization/deserialization.
+                            If the server prints level_id = 2 when it should be 3, the bug is in the server's level advancement logic. */
+                            st.advance_level(&tx_out_broadcast); // <-- pass the sender here
+                            println!(
+                                "SERVER DEBUG: Broadcasting level_id = {}",
+                                st.wire_level.level_id
+                            );
                             true
                         } else {
                             false
@@ -151,36 +172,42 @@ async fn main_multiplayer() -> anyhow::Result<()> {
                         let st = state_for_broadcast.lock();
                         st.wire_level.clone()
                     };
-                    
+
                     let level_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
                         player_id: 0, // Special ID for level change
                         level: new_level_data,
                     });
-                    
+
                     let addrs: Vec<std::net::SocketAddr> = {
                         let st = state_for_broadcast.lock();
                         st.addr_by_player.values().copied().collect()
                     };
                     println!("📤 Broadcasting level change to {} clients", addrs.len());
                     for addr in addrs {
+                        println!("SERVER DEBUG: Sending message to {}: {:?}", addr, level_msg);
                         let _ = tx_out_broadcast.send((addr, level_msg.clone()));
                     }
                 }
 
                 let snapshot = {
                     let st = state_for_broadcast.lock();
-                    let players = st.players.iter().map(|(pid, info)| protocol::PlayerState {
-                        player_id: *pid,
-                        username: info.username.clone(),
-                        x: info.pos_x,
-                        y: info.pos_y,
-                        angle: info.angle,
-                        health: info.health,
-                        score: info.score,
-                    }).collect::<Vec<_>>();
+                    let players = st
+                        .players
+                        .iter()
+                        .map(|(pid, info)| protocol::PlayerState {
+                            player_id: *pid,
+                            username: info.username.clone(),
+                            x: info.pos_x,
+                            y: info.pos_y,
+                            angle: info.angle,
+                            health: info.health,
+                            score: info.score,
+                        })
+                        .collect::<Vec<_>>();
 
                     let now_ms = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH).unwrap()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
                         .as_millis() as u64;
 
                     protocol::ServerToClient::Snapshot(protocol::Snapshot {
@@ -245,13 +272,19 @@ async fn main_multiplayer() -> anyhow::Result<()> {
             }
 
             Ok(protocol::ClientToServer::Ping(p)) => {
-                let _ = tx_out.send((addr, protocol::ServerToClient::Pong(protocol::Pong { nonce: p.nonce })));
+                let _ = tx_out.send((
+                    addr,
+                    protocol::ServerToClient::Pong(protocol::Pong { nonce: p.nonce }),
+                ));
             }
 
             Err(err) => {
-                let _ = tx_out.send((addr, protocol::ServerToClient::Error {
-                    message: format!("bad request: {}", err),
-                }));
+                let _ = tx_out.send((
+                    addr,
+                    protocol::ServerToClient::Error {
+                        message: format!("bad request: {}", err),
+                    },
+                ));
             }
         }
     }
@@ -277,7 +310,7 @@ struct ServerState {
     // The serialized form we send to clients on accept
     wire_level: protocol::MazeLevel,
 
-    players: std::collections::HashMap<u64, PlayerInfo>,        // player_id -> PlayerInfo
+    players: std::collections::HashMap<u64, PlayerInfo>, // player_id -> PlayerInfo
     addr_by_player: std::collections::HashMap<u64, std::net::SocketAddr>, // player_id -> address
     player_by_addr: std::collections::HashMap<std::net::SocketAddr, u64>, // address -> player_id
     next_player_id: u64,
@@ -320,7 +353,11 @@ impl ServerState {
     }
 
     /// Registers a new player and returns (player_id, info).
-    fn register_player(&mut self, addr: std::net::SocketAddr, username: String) -> (u64, PlayerInfo) {
+    fn register_player(
+        &mut self,
+        addr: std::net::SocketAddr,
+        username: String,
+    ) -> (u64, PlayerInfo) {
         let player_id = self.next_player_id;
         self.next_player_id += 1;
 
@@ -345,8 +382,16 @@ impl ServerState {
     /// For now we treat 1 world unit == 1 maze tile; we accept the move if the target tile is walkable.
     fn try_apply_input(&mut self, player_id: u64, new_x: f32, new_y: f32, new_angle: f32) {
         if let Some(p) = self.players.get_mut(&player_id) {
-            let gx = if new_x >= 0.0 { new_x.floor() as usize } else { usize::MAX }; // outside -> reject
-            let gy = if new_y >= 0.0 { new_y.floor() as usize } else { usize::MAX };
+            let gx = if new_x >= 0.0 {
+                new_x.floor() as usize
+            } else {
+                usize::MAX
+            }; // outside -> reject
+            let gy = if new_y >= 0.0 {
+                new_y.floor() as usize
+            } else {
+                usize::MAX
+            };
             if gx != usize::MAX && gy != usize::MAX && self.logic_maze.is_walkable(gx, gy) {
                 p.pos_x = new_x;
                 p.pos_y = new_y;
@@ -364,12 +409,14 @@ impl ServerState {
         for (player_id, player) in self.players.iter() {
             let gx = player.pos_x.floor() as usize;
             let gy = player.pos_y.floor() as usize;
-            
+
             if gx < self.logic_maze.width && gy < self.logic_maze.height {
                 let cell = &self.logic_maze.grid[gy][gx];
                 if matches!(cell, Cell::Exit) {
-                    println!("🎯 Player {} reached exit at ({}, {}) - Level {} completed!", 
-                             player_id, gx, gy, self.logic_maze.level_id);
+                    println!(
+                        "🎯 Player {} reached exit at ({}, {}) - Level {} completed!",
+                        player_id, gx, gy, self.logic_maze.level_id
+                    );
                     return Some(self.logic_maze.level_id);
                 }
             }
@@ -378,39 +425,87 @@ impl ServerState {
     }
 
     /// Advances to the next level and resets all players
-    fn advance_level(&mut self) {
-        let current_level = self.logic_maze.level_id;
-        let next_level = if current_level < 3 { current_level + 1 } else { 1 };
-        
-        println!("🚀 Advancing from level {} to level {}", current_level, next_level);
-        
-        // Load new maze
+    // fn advance_level(&mut self) {
+    //     let current_level = self.logic_maze.level_id;
+    //     let next_level = if current_level < 3 { current_level + 1 } else { 1 };
+
+    //     println!("🚀 Advancing from level {} to level {}", current_level, next_level);
+
+    //     // Load new maze
+    //     self.logic_maze = Maze::load_level(next_level as u8);
+
+    //     // Update wire level
+    //     self.wire_level = maze_to_protocol(next_level, &self.logic_maze);
+
+    //     // Reset spawn cursor
+    //     self.spawn_cursor = 0;
+
+    //     // Respawn all players at new spawn points
+    //     let player_count = self.players.len();
+    //     println!("🔄 Respawning {} players for new level", player_count);
+
+    //     // Collect spawn points first to avoid borrowing conflicts
+    //     let mut spawn_points = Vec::new();
+    //     for _ in 0..player_count {
+    //         spawn_points.push(self.next_spawn());
+    //     }
+
+    //     // Now update player positions
+    //     for (i, (player_id, player)) in self.players.iter_mut().enumerate() {
+    //         let (sx, sy) = spawn_points[i];
+    //         player.pos_x = sx;
+    //         player.pos_y = sy;
+    //         player.angle = 0.0;
+    //         player.health = 100; // Reset health
+    //         println!("📍 Respawned player {} at ({}, {})", player_id, sx, sy);
+    //     }
+    // }
+    fn advance_level(
+        &mut self,
+        tx_out: &tokio::sync::mpsc::UnboundedSender<(
+            std::net::SocketAddr,
+            protocol::ServerToClient,
+        )>,
+    ) {
+        // Advance level (wrap after 3)
+        let next_level = match self.wire_level.level_id {
+            1 => 2,
+            2 => 3,
+            _ => 1,
+        };
+        println!(
+            "Advancing from level {} to {}",
+            self.wire_level.level_id, next_level
+        );
         self.logic_maze = Maze::load_level(next_level as u8);
-        
-        // Update wire level
         self.wire_level = maze_to_protocol(next_level, &self.logic_maze);
-        
-        // Reset spawn cursor
+        self.spawns = self.logic_maze.spawn_points(128);
         self.spawn_cursor = 0;
-        
-        // Respawn all players at new spawn points
-        let player_count = self.players.len();
-        println!("🔄 Respawning {} players for new level", player_count);
-        
-        // Collect spawn points first to avoid borrowing conflicts
-        let mut spawn_points = Vec::new();
-        for _ in 0..player_count {
-            spawn_points.push(self.next_spawn());
+
+        // Reset all player positions
+        for (_pid, info) in self.players.iter_mut() {
+            let (sx, sy) = self.spawns[self.spawn_cursor % self.spawns.len()];
+            self.spawn_cursor += 1;
+            info.pos_x = sx as f32 + 0.5;
+            info.pos_y = sy as f32 + 0.5;
+            info.angle = 0.0;
         }
-        
-        // Now update player positions
-        for (i, (player_id, player)) in self.players.iter_mut().enumerate() {
-            let (sx, sy) = spawn_points[i];
-            player.pos_x = sx;
-            player.pos_y = sy;
-            player.angle = 0.0;
-            player.health = 100; // Reset health
-            println!("📍 Respawned player {} at ({}, {})", player_id, sx, sy);
+
+        // Broadcast new maze to all clients
+        // for (addr, _info) in self.addr_to_id.iter() {
+        //     let accept_msg = protocol::ServerToClient::Accept(protocol::Accept {
+        //         level: self.wire_level.clone(),
+        //         player_id: 0, // 0 signals level change
+        //     });
+        //     let buf = protocol::encode_server(&accept_msg);
+        //     let _ = self.socket.send_to(&buf, addr);
+        // }
+        for addr in self.addr_by_player.values() {
+            let accept_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
+                level: self.wire_level.clone(),
+                player_id: 0, // 0 signals level change
+            });
+            let _ = tx_out.send((*addr, accept_msg));
         }
     }
 }
@@ -425,8 +520,8 @@ fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
             cells.push(protocol::MazeCell {
                 wall_north: is_wall,
                 wall_south: is_wall,
-                wall_east:  is_wall,
-                wall_west:  is_wall,
+                wall_east: is_wall,
+                wall_west: is_wall,
             });
         }
     }
@@ -442,4 +537,3 @@ fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
 fn encode_server(msg: &protocol::ServerToClient) -> Result<Vec<u8>, protocol::ProtocolError> {
     protocol::encode_server(msg)
 }
-

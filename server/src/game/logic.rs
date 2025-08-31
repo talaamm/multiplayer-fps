@@ -265,7 +265,7 @@ impl Maze {
     }
 
     fn level3() -> Self {
-        let mut maze = Maze::new(40, 40, 3);
+        let mut maze = Maze::new(5, 5, 3);
         
         // Complex maze with many dead ends and challenging navigation
         // Use a recursive backtracking algorithm for proper maze generation

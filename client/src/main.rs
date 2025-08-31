@@ -11,22 +11,28 @@ struct Level {
 }
 
 impl Level {
-    fn new(w: usize, h: usize, tiles: Vec<u8>) -> Self { Self { w, h, tiles } }
+    fn new(w: usize, h: usize, tiles: Vec<u8>) -> Self {
+        Self { w, h, tiles }
+    }
 
     // Safe cell access: out-of-bounds are treated as walls
     fn at(&self, x: i32, y: i32) -> u8 {
-        if x < 0 || y < 0 { return 1; }
+        if x < 0 || y < 0 {
+            return 1;
+        }
         let (x, y) = (x as usize, y as usize);
-        if x >= self.w || y >= self.h { return 1; }
+        if x >= self.w || y >= self.h {
+            return 1;
+        }
         self.tiles[y * self.w + x]
     }
-    
+
     // Check if position is walkable (path or exit)
     fn is_walkable(&self, x: i32, y: i32) -> bool {
         let tile = self.at(x, y);
         tile == 0 || tile == 2 // path or exit
     }
-    
+
     // Check if position is exit
     fn is_exit(&self, x: i32, y: i32) -> bool {
         self.at(x, y) == 2
@@ -35,7 +41,7 @@ impl Level {
 
 // ---------- Config ----------
 const FOV_DEG: f32 = 70.0;
-const MOVE_SPEED: f32 = 5.0;     // cells/sec (increased for more responsive movement)
+const MOVE_SPEED: f32 = 5.0; // cells/sec (increased for more responsive movement)
 const MOUSE_SENSITIVITY: f32 = 0.3; // rad/pixel
 const RENDER_SCALE: f32 = 1.0;
 const PLAYER_RADIUS: f32 = 0.20; // radius in cells for collision
@@ -47,7 +53,12 @@ struct Player {
     dir: f32, // radians
 }
 impl Player {
-    fn new(x: f32, y: f32, dir: f32) -> Self { Self { pos: vec2(x, y), dir } }
+    fn new(x: f32, y: f32, dir: f32) -> Self {
+        Self {
+            pos: vec2(x, y),
+            dir,
+        }
+    }
 }
 
 // ---------- Minimap ----------
@@ -57,21 +68,29 @@ fn draw_minimap(level: &Level, player: &Player, others: &[RemotePlayer]) {
     let w = level.w as f32 * map_scale;
     let h = level.h as f32 * map_scale;
 
-    draw_rectangle(pad - 2.0, pad - 2.0, w + 4.0, h + 4.0, Color::from_rgba(0,0,0,160));
+    draw_rectangle(
+        pad - 2.0,
+        pad - 2.0,
+        w + 4.0,
+        h + 4.0,
+        Color::from_rgba(0, 0, 0, 160),
+    );
 
     // ✅ PATH (t==0) = WHITE, WALL (t==1) = DARKGREEN, EXIT (t==2) = RED
     for y in 0..level.h {
         for x in 0..level.w {
             let t = level.tiles[y * level.w + x];
             let c = match t {
-                1 => WHITE,  // Wall
-                2 => RED,        // Exit
-                _ => DARKGREEN,      // Path
+                1 => WHITE,     // Wall
+                2 => RED,       // Exit
+                _ => DARKGREEN, // Path
             };
             draw_rectangle(
                 pad + x as f32 * map_scale,
                 pad + y as f32 * map_scale,
-                map_scale, map_scale, c
+                map_scale,
+                map_scale,
+                c,
             );
         }
     }
@@ -114,7 +133,9 @@ fn collides_circle_grid(level: &Level, pos: Vec2) -> bool {
         vec2(pos.x + r, pos.y + r),
     ];
     for c in checks.iter() {
-        if solid_at(level, *c) { return true; }
+        if solid_at(level, *c) {
+            return true;
+        }
     }
     false
 }
@@ -134,7 +155,9 @@ fn move_player(level: &Level, player: &mut Player, input: &InputState, dt: f32) 
         let mut step = wish.normalize() * MOVE_SPEED * dt;
         let max_step = 0.35; // fraction of a cell per frame
         let len = step.length();
-        if len > max_step { step *= max_step / len; }
+        if len > max_step {
+            step *= max_step / len;
+        }
 
         // --- move X axis ---
         let try_pos_x = vec2(player.pos.x + step.x, player.pos.y);
@@ -152,14 +175,23 @@ fn move_player(level: &Level, player: &mut Player, input: &InputState, dt: f32) 
 
 // ---------- Raycasting (DDA) ----------
 fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
-    let (sw, sh) = (screen_width() * RENDER_SCALE, screen_height() * RENDER_SCALE);
+    let (sw, sh) = (
+        screen_width() * RENDER_SCALE,
+        screen_height() * RENDER_SCALE,
+    );
     let fov = FOV_DEG.to_radians();
     let half_fov = fov * 0.5;
     let num_cols = sw as i32;
 
     // Sky & floor
     draw_rectangle(0.0, 0.0, sw, sh * 0.5, Color::from_rgba(30, 30, 50, 255));
-    draw_rectangle(0.0, sh * 0.5, sw, sh * 0.5, Color::from_rgba(25, 35, 25, 255));
+    draw_rectangle(
+        0.0,
+        sh * 0.5,
+        sw,
+        sh * 0.5,
+        Color::from_rgba(25, 35, 25, 255),
+    );
 
     // Depth buffer per column for occlusion (z-buffer)
     let mut zbuffer = vec![f32::INFINITY; num_cols as usize];
@@ -175,8 +207,16 @@ fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
         let mut map_y = player.pos.y.floor() as i32;
 
         let delta_dist = vec2(
-            if ray_dir.x.abs() < 1e-6 { 1e30 } else { (1.0 / ray_dir.x).abs() },
-            if ray_dir.y.abs() < 1e-6 { 1e30 } else { (1.0 / ray_dir.y).abs() },
+            if ray_dir.x.abs() < 1e-6 {
+                1e30
+            } else {
+                (1.0 / ray_dir.x).abs()
+            },
+            if ray_dir.y.abs() < 1e-6 {
+                1e30
+            } else {
+                (1.0 / ray_dir.y).abs()
+            },
         );
 
         let step_x = if ray_dir.x < 0.0 { -1 } else { 1 };
@@ -210,19 +250,24 @@ fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
             }
 
             let tile = level.at(map_x, map_y);
-            if tile == 1 || tile == 2 { // Wall or exit
+            if tile == 1 || tile == 2 {
+                // Wall or exit
                 hit = true;
                 break;
             }
         }
-        if !hit { continue; }
+        if !hit {
+            continue;
+        }
 
         // Perp distance to avoid fisheye
         let perp_dist = if side == 0 {
             (map_x as f32 - player.pos.x + (1 - step_x) as f32 / 2.0) / ray_dir.x
         } else {
             (map_y as f32 - player.pos.y + (1 - step_y) as f32 / 2.0) / ray_dir.y
-        }.abs().max(0.0001);
+        }
+        .abs()
+        .max(0.0001);
 
         let line_h = (sh / perp_dist).min(sh);
         let y0 = (sh * 0.5 - line_h * 0.5).max(0.0);
@@ -258,7 +303,9 @@ fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
         let dir = vec2(player.dir.cos(), player.dir.sin());
         let right = vec2(-dir.y, dir.x);
         let depth = to.dot(dir);
-        if depth <= 0.05 { continue; }
+        if depth <= 0.05 {
+            continue;
+        }
         let lateral = to.dot(right);
         let fov = FOV_DEG.to_radians();
         let half = (fov * 0.5).tan();
@@ -275,11 +322,22 @@ fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
         let occluded = perp >= zbuffer[col] - 0.001;
         if x1 > 0.0 && x0 < sw && !occluded {
             // body
-            draw_rectangle(x0, y0, (x1 - x0).max(1.0), (y1 - y0).max(1.0), Color::from_rgba(210, 80, 80, 255));
+            draw_rectangle(
+                x0,
+                y0,
+                (x1 - x0).max(1.0),
+                (y1 - y0).max(1.0),
+                Color::from_rgba(210, 80, 80, 255),
+            );
             // head: small circle at upper third
             let head_y = y0 + sprite_h * 0.25;
             let head_r = (sprite_w * 0.35).max(2.0);
-            draw_circle(screen_x, head_y, head_r, Color::from_rgba(240, 200, 180, 255));
+            draw_circle(
+                screen_x,
+                head_y,
+                head_r,
+                Color::from_rgba(240, 200, 180, 255),
+            );
             // facing arrow on the body (project a small arrow along rp.angle)
             let ah = (sh / perp) * 0.08; // arrow length in screen space
             let ax = rp.angle.cos();
@@ -287,26 +345,51 @@ fn draw_world(level: &Level, player: &Player, others: &[RemotePlayer]) {
             // approximate screen offset: map lateral displacement along player's right and up screen
             let arrow_x = screen_x;
             let arrow_y = y0 + sprite_h * 0.6;
-            draw_line(arrow_x, arrow_y, arrow_x + ax as f32 * ah, arrow_y - ay as f32 * ah, 2.0, YELLOW);
+            draw_line(
+                arrow_x,
+                arrow_y,
+                arrow_x + ax as f32 * ah,
+                arrow_y - ay as f32 * ah,
+                2.0,
+                YELLOW,
+            );
             // name tag above
             let name_y = (y0 - 12.0).max(0.0);
             let tw = measure_text(&rp.name, None, 14, 1.0);
-            draw_text(&rp.name, (screen_x - tw.width * 0.5).max(0.0), name_y, 14.0, WHITE);
+            draw_text(
+                &rp.name,
+                (screen_x - tw.width * 0.5).max(0.0),
+                name_y,
+                14.0,
+                WHITE,
+            );
         }
     }
 }
 
 // ---------- Input ----------
 #[derive(Default)]
-struct InputState { forward: f32, strafe: f32, rot: f32 }
+struct InputState {
+    forward: f32,
+    strafe: f32,
+    rot: f32,
+}
 fn gather_input(mouse_captured: bool) -> InputState {
     let mut s = InputState::default();
-    
+
     // Movement keys (should work regardless of mouse capture)
-    if is_key_down(KeyCode::W) { s.forward += 1.0; }
-    if is_key_down(KeyCode::S) { s.forward -= 1.0; }
-    if is_key_down(KeyCode::D) { s.strafe  += 1.0; }
-    if is_key_down(KeyCode::A) { s.strafe  -= 1.0; }
+    if is_key_down(KeyCode::W) {
+        s.forward += 1.0;
+    }
+    if is_key_down(KeyCode::S) {
+        s.forward -= 1.0;
+    }
+    if is_key_down(KeyCode::D) {
+        s.strafe += 1.0;
+    }
+    if is_key_down(KeyCode::A) {
+        s.strafe -= 1.0;
+    }
 
     // Mouse rotation (only when captured)
     if mouse_captured {
@@ -318,71 +401,126 @@ fn gather_input(mouse_captured: bool) -> InputState {
 }
 
 // ---------- HUD ----------
-fn draw_hud(level_id: u8, rtt_ms: Option<u64>, username: &str, player_count: usize, mouse_captured: bool, player_pos: Vec2, has_moved_locally: bool, level: &Level, exit_reached: bool, exit_reached_time: f32) {
+fn draw_hud(
+    level_id: u8,
+    rtt_ms: Option<u64>,
+    username: &str,
+    player_count: usize,
+    mouse_captured: bool,
+    player_pos: Vec2,
+    has_moved_locally: bool,
+    level: &Level,
+    exit_reached: bool,
+    exit_reached_time: f32,
+) {
     let fps = macroquad::time::get_fps();
-    let ping_txt = match rtt_ms { Some(v) => format!("{} ms", v), None => "--".to_string() };
+    let ping_txt = match rtt_ms {
+        Some(v) => format!("{} ms", v),
+        None => "--".to_string(),
+    };
     let txt = format!(
         "Ping: {ping_txt}   Players: {player_count}\nUser: {username}   Level: {level_id}\nWASD move, Mouse look"
     );
     let fpstxt = format!("FPS: {fps}");
     draw_text(&txt, 10.0, screen_height() - 40.0, 20.0, WHITE);
     draw_text(&fpstxt, 10.0, screen_height() - 20.0, 20.0, WHITE);
-    
+
     // Debug: Show key states
     let w_pressed = if is_key_down(KeyCode::W) { "W" } else { " " };
     let a_pressed = if is_key_down(KeyCode::A) { "A" } else { " " };
     let s_pressed = if is_key_down(KeyCode::S) { "S" } else { " " };
     let d_pressed = if is_key_down(KeyCode::D) { "D" } else { " " };
-    let debug_txt = format!("Keys: [{}][{}][{}][{}]", w_pressed, a_pressed, s_pressed, d_pressed);
+    let debug_txt = format!(
+        "Keys: [{}][{}][{}][{}]",
+        w_pressed, a_pressed, s_pressed, d_pressed
+    );
     draw_text(&debug_txt, 10.0, screen_height() - 80.0, 16.0, YELLOW);
-    
+
     // Debug: Show mouse capture state
     let mouse_state = if mouse_captured { "CAPTURED" } else { "FREE" };
-    draw_text(&format!("Mouse: {}", mouse_state), 10.0, screen_height() - 100.0, 16.0, YELLOW);
-    
+    draw_text(
+        &format!("Mouse: {}", mouse_state),
+        10.0,
+        screen_height() - 100.0,
+        16.0,
+        YELLOW,
+    );
+
     // Debug: Show player position
-    draw_text(&format!("Pos: ({:.1}, {:.1})", player_pos.x, player_pos.y), 10.0, screen_height() - 120.0, 16.0, YELLOW);
-    
+    draw_text(
+        &format!("Pos: ({:.1}, {:.1})", player_pos.x, player_pos.y),
+        10.0,
+        screen_height() - 120.0,
+        16.0,
+        YELLOW,
+    );
+
     // Debug: Show movement state
     let input = gather_input(mouse_captured);
     let is_moving = input.forward.abs() > 0.1 || input.strafe.abs() > 0.1;
     let move_state = if is_moving { "MOVING" } else { "IDLE" };
-    draw_text(&format!("State: {}", move_state), 10.0, screen_height() - 140.0, 16.0, YELLOW);
-    
+    draw_text(
+        &format!("State: {}", move_state),
+        10.0,
+        screen_height() - 140.0,
+        16.0,
+        YELLOW,
+    );
+
     // Debug: Show movement tracking
     let local_state = if has_moved_locally { "LOCAL" } else { "SERVER" };
-    draw_text(&format!("Control: {}", local_state), 10.0, screen_height() - 160.0, 16.0, YELLOW);
-    
+    draw_text(
+        &format!("Control: {}", local_state),
+        10.0,
+        screen_height() - 160.0,
+        16.0,
+        YELLOW,
+    );
 
-    
     // Check if near exit
     let player_x = player_pos.x.floor() as i32;
     let player_y = player_pos.y.floor() as i32;
     if level.is_exit(player_x, player_y) {
         if exit_reached {
             let countdown = (2.0 - exit_reached_time).max(0.0);
-            draw_text(&format!("🎯 EXIT REACHED! Next level in {:.1}s", countdown), 10.0, screen_height() - 180.0, 20.0, RED);
+            draw_text(
+                &format!("🎯 EXIT REACHED! Next level in {:.1}s", countdown),
+                10.0,
+                screen_height() - 180.0,
+                20.0,
+                RED,
+            );
         } else {
             draw_text("🎯 EXIT REACHED!", 10.0, screen_height() - 180.0, 20.0, RED);
         }
     }
-    
+
     // Show level change notification
     if exit_reached && exit_reached_time > 0.5 {
-        draw_text("🚀 ADVANCING TO NEXT LEVEL...", 10.0, screen_height() - 200.0, 20.0, GREEN);
+        draw_text(
+            "🚀 ADVANCING TO NEXT LEVEL...",
+            10.0,
+            screen_height() - 200.0,
+            20.0,
+            GREEN,
+        );
     }
 }
 
 // ---------- Remote players ----------
 #[derive(Clone, Debug)]
-struct RemotePlayer { pos: Vec2, angle: f32, name: String }
+struct RemotePlayer {
+    pos: Vec2,
+    angle: f32,
+    name: String,
+}
 
 // ---------- Protocol adapter ----------
 fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
     let w = wire.width as usize;
     let h = wire.height as usize;
     let mut tiles = vec![1u8; w * h];
-    
+
     // First pass: convert walls and paths
     for y in 0..h {
         for x in 0..w {
@@ -392,15 +530,15 @@ fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
             tiles[y * w + x] = if is_wall { 1 } else { 0 };
         }
     }
-    
+
     // Second pass: add exit points based on level
     match wire.level_id {
-        1 => tiles[13 * w + 13] = 2, // Level 1 exit at (13, 13)
-        2 => tiles[23 * w + 23] = 2, // Level 2 exit at (23, 23)
-        3 => tiles[(h-3) * w + (w-3)] = 2, // Level 3 exit at (width-3, height-3)
-        _ => tiles[13 * w + 13] = 2, // Default exit
+        1 => tiles[13 * w + 13] = 2,           // Level 1 exit at (13, 13)
+        2 => tiles[23 * w + 23] = 2,           // Level 2 exit at (23, 23)
+        3 => tiles[(h - 3) * w + (w - 3)] = 2, // Level 3 exit at (width-3, height-3)
+        _ => tiles[13 * w + 13] = 2,           // Default exit
     }
-    
+
     Level::new(w, h, tiles)
 }
 
@@ -408,12 +546,12 @@ fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
 fn find_safe_spawn(level: &Level) -> Vec2 {
     // Try common safe spawn positions first
     let safe_positions = [
-        vec2(1.5, 1.5),   // Top-left corner
-        vec2(2.5, 1.5),   // Top-left + 1
-        vec2(1.5, 2.5),   // Top-left + 1 down
-        vec2(2.5, 2.5),   // Top-left + 1 diagonal
+        vec2(1.5, 1.5), // Top-left corner
+        vec2(2.5, 1.5), // Top-left + 1
+        vec2(1.5, 2.5), // Top-left + 1 down
+        vec2(2.5, 2.5), // Top-left + 1 diagonal
     ];
-    
+
     for &pos in &safe_positions {
         let x = pos.x.floor() as i32;
         let y = pos.y.floor() as i32;
@@ -421,16 +559,22 @@ fn find_safe_spawn(level: &Level) -> Vec2 {
             return pos;
         }
     }
-    
+
     // If no safe position found, search for the first walkable tile
+    // for y in 0..level.h {
+    //     for x in 0..level.w {
+    //         if level.is_walkable(x as i32, y as i32) {
+    //             return vec2(x as f32 + 0.5, y as f32 + 0.5);
+    //         }
+    //     }
+    // }
     for y in 0..level.h {
         for x in 0..level.w {
-            if level.is_walkable(x as i32, y as i32) {
+            if level.tiles[y * level.w + x] == 0 {
                 return vec2(x as f32 + 0.5, y as f32 + 0.5);
             }
         }
     }
-    
     // Fallback to a safe default
     vec2(1.5, 1.5)
 }
@@ -445,7 +589,10 @@ async fn main() {
     show_mouse(true);
 
     // --- Simple UI for IP + username ---
-    enum AppState { Connect, Playing }
+    enum AppState {
+        Connect,
+        Playing,
+    }
     let mut app_state = AppState::Connect;
     let mut server_addr = String::from("127.0.0.1:34254");
     let mut username = String::from("player");
@@ -460,14 +607,18 @@ async fn main() {
     let mut self_target_pos: Vec2 = player.pos;
     // Ping/latency state
     #[derive(Clone, Copy)]
-    struct PingInfo { last_nonce: u64, last_send: f64, rtt_ms: u64 }
+    struct PingInfo {
+        last_nonce: u64,
+        last_send: f64,
+        rtt_ms: u64,
+    }
     let mut ping_state: Option<PingInfo> = None;
     let mut ping_timer: f32 = 0.0;
-    
+
     // Movement tracking
     let mut last_movement_time: f32 = 0.0;
     let mut has_moved_locally = false;
-    
+
     // Level progression tracking
     let mut exit_reached_time: f32 = 0.0;
     let mut exit_reached = false;
@@ -494,7 +645,7 @@ async fn main() {
                 // Render a simple input form
                 let title = "Connect to Server";
                 let tw = measure_text(title, None, 32, 1.0);
-                draw_text(title, (screen_width()-tw.width)*0.5, 120.0, 32.0, WHITE);
+                draw_text(title, (screen_width() - tw.width) * 0.5, 120.0, 32.0, WHITE);
 
                 let label1 = "Server (IP:PORT):";
                 draw_text(label1, 200.0, 200.0, 24.0, GRAY);
@@ -502,15 +653,32 @@ async fn main() {
                 draw_text(label2, 200.0, 260.0, 24.0, GRAY);
 
                 // Input boxes
-                let bx = 380.0; let bw = screen_width()-bx-200.0; let bh = 32.0;
-                let by1 = 175.0; let by2 = 235.0;
-                draw_rectangle_lines(bx-4.0, by1-24.0, bw+8.0, bh+8.0, 2.0, if input_focus==0 { YELLOW } else { DARKGRAY });
-                draw_rectangle_lines(bx-4.0, by2-24.0, bw+8.0, bh+8.0, 2.0, if input_focus==1 { YELLOW } else { DARKGRAY });
+                let bx = 380.0;
+                let bw = screen_width() - bx - 200.0;
+                let bh = 32.0;
+                let by1 = 175.0;
+                let by2 = 235.0;
+                draw_rectangle_lines(
+                    bx - 4.0,
+                    by1 - 24.0,
+                    bw + 8.0,
+                    bh + 8.0,
+                    2.0,
+                    if input_focus == 0 { YELLOW } else { DARKGRAY },
+                );
+                draw_rectangle_lines(
+                    bx - 4.0,
+                    by2 - 24.0,
+                    bw + 8.0,
+                    bh + 8.0,
+                    2.0,
+                    if input_focus == 1 { YELLOW } else { DARKGRAY },
+                );
                 draw_text(&server_addr, bx, by1, 28.0, WHITE);
                 draw_text(&username, bx, by2, 28.0, WHITE);
 
                 let hint = "Tab switch, Enter connect";
-                draw_text(hint, bx, by2+40.0, 20.0, GRAY);
+                draw_text(hint, bx, by2 + 40.0, 20.0, GRAY);
 
                 // Handle input
                 while let Some(c) = get_char_pressed() {
@@ -518,7 +686,9 @@ async fn main() {
                         input_focus = 1 - input_focus;
                         continue;
                     }
-                    if c.is_control() { continue; }
+                    if c.is_control() {
+                        continue;
+                    }
                     if input_focus == 0 {
                         server_addr.push(c);
                     } else {
@@ -527,7 +697,11 @@ async fn main() {
                 }
 
                 if is_key_pressed(KeyCode::Backspace) {
-                    if input_focus==0 { server_addr.pop(); } else { username.pop(); }
+                    if input_focus == 0 {
+                        server_addr.pop();
+                    } else {
+                        username.pop();
+                    }
                 }
 
                 if is_key_pressed(KeyCode::Enter) {
@@ -539,28 +713,29 @@ async fn main() {
                     if input_focus == 0 && name.is_empty() {
                         input_focus = 1;
                     } else if !addr.is_empty() && !name.is_empty() {
-                        if let Ok(n) = network::NetClient::start(addr.to_string(), name.to_string()) {
+                        if let Ok(n) = network::NetClient::start(addr.to_string(), name.to_string())
+                        {
                             net = Some(n);
                             app_state = AppState::Playing;
                         }
                     }
                 }
             }
-            AppState::Playing => { 
+            AppState::Playing => {
                 if let Some(ref level) = level {
                     draw_world(level, &player, &others);
                 }
-            } 
+            }
         }
 
         if let AppState::Playing = app_state {
             let input = gather_input(mouse_captured);
-            
+
             // Apply local movement first (only if we have a level)
             if let Some(ref level) = level {
                 move_player(level, &mut player, &input, dt);
             }
-                        // Check if player reached exit (only if we have a level)
+            // Check if player reached exit (only if we have a level)
             if let Some(ref level) = level {
                 let player_x = player.pos.x.floor() as i32;
                 let player_y = player.pos.y.floor() as i32;
@@ -568,7 +743,10 @@ async fn main() {
                     if !exit_reached {
                         exit_reached = true;
                         exit_reached_time = 0.0;
-                        println!("🎉 EXIT REACHED! Level {} completed! Player at ({}, {})", level_id, player_x, player_y);
+                        println!(
+                            "🎉 EXIT REACHED! Level {} completed! Player at ({}, {})",
+                            level_id, player_x, player_y
+                        );
                     }
                 } else {
                     if exit_reached {
@@ -577,9 +755,9 @@ async fn main() {
                     exit_reached = false;
                 }
             }
-            
+
             // Level progression is handled by the server
-            
+
             // Track if we've moved locally
             let is_moving = input.forward.abs() > 0.1 || input.strafe.abs() > 0.1;
             if is_moving {
@@ -588,7 +766,7 @@ async fn main() {
             } else {
                 last_movement_time += dt;
             }
-            
+
             // Only reconcile if we haven't moved recently and we're very far out of sync
             if !is_moving && last_movement_time > 0.5 && !has_moved_locally {
                 let delta = self_target_pos - player.pos;
@@ -604,38 +782,83 @@ async fn main() {
         if let (AppState::Playing, Some(net)) = (&app_state, &net) {
             // Receive messages
             while let Ok(msg) = net.rx_incoming.try_recv() {
+                // println!("SERVER DEBUG: Broadcasting level_id = {}", self.wire_level.level_id);
+                println!("CLIENT DEBUG: Received message: {:?}", msg);
+                /*Does the server print that it is sending an Accept message for level 3 to the client?
+                Does the client ever print an Accept message for level 3?
+                If not, the message is lost or malformed. */
+
                 match msg {
                     protocol::ServerToClient::Accept(acc) => {
+                        // println!("CLIENT DEBUG: Received Accept message: {:?}", acc);
                         // Accept server level data
                         level = Some(level_from_maze_level(&acc.level));
                         level_id = acc.level.level_id as u8;
-                        
+
+                        println!("🎮 Level {} loaded!", level_id);
+
                         // Only set player ID if it's not a level change (player_id != 0)
                         if acc.player_id != 0 {
                             my_player_id = Some(acc.player_id);
+                            println!(
+                                "⚠️ not a level change. You are now player {}!",
+                                acc.player_id
+                            );
                         }
-                        
+
                         // If this is a level change (player_id == 0), reset player position and state
                         if acc.player_id == 0 {
-                            println!("🎯 Level changed to {}! Resetting player position...", level_id);
-                            
-                            // Find a safe spawn position in the new level
-                            let new_level = level_from_maze_level(&acc.level);
-                            let safe_spawn = find_safe_spawn(&new_level);
-                            player.pos = safe_spawn;
-                            player.dir = 0.0; // Reset direction
-                            
-                            // Clear other players list for new level
-                            others.clear();
-                            
-                            // Reset movement tracking for new level
+                            println!(
+                                "🎯 Level changed to {}! Resetting player position...",
+                                level_id
+                            );
+                            println!("DEBUG: Resetting for level_id = {}", acc.level.level_id);
+
+                            level = if Some(level_from_maze_level(&acc.level)).is_some() {
+                                Some(level_from_maze_level(&acc.level))
+                            } else {
+                                println!("ERROR: Failed to load level data from server.");
+                                level
+                            };
+                            level_id = acc.level.level_id as u8;
+
+                            // Find a safe spawn
+                            // let spawn_pos = find_safe_spawn(&level);
+                            // player.pos = spawn_pos;
+                            // self_target_pos = player.pos;
+                            if let Some(ref lvl) = level {
+                                let spawn_pos = find_safe_spawn(lvl);
+                                println!(
+                                    "DEBUG: Spawn position for level {} is {:?}",
+                                    level_id, spawn_pos
+                                );
+
+                                player.pos = spawn_pos;
+                                self_target_pos = player.pos;
+                            }
+                            // Reset movement and exit state
                             has_moved_locally = false;
                             last_movement_time = 0.0;
                             exit_reached = false;
                             exit_reached_time = 0.0;
-                            
-                            // Reset reconciliation target
-                            self_target_pos = player.pos;
+                            others.clear();
+                            // // Find a safe spawn position in the new level
+                            // let new_level = level_from_maze_level(&acc.level);
+                            // let safe_spawn = find_safe_spawn(&new_level);
+                            // player.pos = safe_spawn;
+                            // player.dir = 0.0; // Reset direction
+
+                            // // Clear other players list for new level
+                            // others.clear();
+
+                            // // Reset movement tracking for new level
+                            // has_moved_locally = false;
+                            // last_movement_time = 0.0;
+                            // exit_reached = false;
+                            // exit_reached_time = 0.0;
+
+                            // // Reset reconciliation target
+                            // self_target_pos = player.pos;
                         } else {
                             // Reset movement tracking when joining a new server
                             has_moved_locally = false;
@@ -660,7 +883,11 @@ async fn main() {
                                     continue;
                                 }
                             }
-                            others.push(RemotePlayer { pos: vec2(p.x, p.y), angle: p.angle, name: p.username.clone() });
+                            others.push(RemotePlayer {
+                                pos: vec2(p.x, p.y),
+                                angle: p.angle,
+                                name: p.username.clone(),
+                            });
                         }
                         // If we just connected and were inside a wall locally, this ensures we snap to a valid spawn
                         let _ = updated_self;
@@ -674,7 +901,9 @@ async fn main() {
                             }
                         }
                     }
-                    _ => {}
+                    _ => {
+                        println!("CLIENT DEBUG: Received unknown message: {:?}", msg);
+                    }
                 }
             }
 
@@ -694,8 +923,14 @@ async fn main() {
             if ping_timer > 1.0 {
                 ping_timer = 0.0;
                 let nonce = (macroquad::time::get_time() * 1_000_000.0) as u64;
-                ping_state = Some(PingInfo { last_nonce: nonce, last_send: macroquad::time::get_time(), rtt_ms: ping_state.map(|p| p.rtt_ms).unwrap_or(0) });
-                let _ = net.tx_outgoing.send(protocol::ClientToServer::Ping(protocol::Ping { nonce }));
+                ping_state = Some(PingInfo {
+                    last_nonce: nonce,
+                    last_send: macroquad::time::get_time(),
+                    rtt_ms: ping_state.map(|p| p.rtt_ms).unwrap_or(0),
+                });
+                let _ = net
+                    .tx_outgoing
+                    .send(protocol::ClientToServer::Ping(protocol::Ping { nonce }));
             }
         }
 
@@ -703,22 +938,35 @@ async fn main() {
             if let Some(ref level) = level {
                 draw_minimap(level, &player, &others);
                 let count = others.len() + 1;
-                draw_hud(level_id, ping_state.map(|p| p.rtt_ms), &username, count, mouse_captured, player.pos, has_moved_locally, level, exit_reached, exit_reached_time);
+                draw_hud(
+                    level_id,
+                    ping_state.map(|p| p.rtt_ms),
+                    &username,
+                    count,
+                    mouse_captured,
+                    player.pos,
+                    has_moved_locally,
+                    level,
+                    exit_reached,
+                    exit_reached_time,
+                );
             }
         }
 
         // Hint to (re)capture the mouse
-        if let AppState::Playing = app_state { if !mouse_captured {
-            let hint = "Click to capture mouse (Esc to release)";
-            let tw = measure_text(hint, None, 24, 1.0);
-            draw_text(
-                hint,
-                (screen_width() - tw.width) * 0.5,
-                screen_height() * 0.5,
-                24.0,
-                YELLOW,
-            );
-        } }
+        if let AppState::Playing = app_state {
+            if !mouse_captured {
+                let hint = "Click to capture mouse (Esc to release)";
+                let tw = measure_text(hint, None, 24, 1.0);
+                draw_text(
+                    hint,
+                    (screen_width() - tw.width) * 0.5,
+                    screen_height() * 0.5,
+                    24.0,
+                    YELLOW,
+                );
+            }
+        }
 
         next_frame().await;
     }
