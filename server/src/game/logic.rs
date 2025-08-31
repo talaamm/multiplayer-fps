@@ -11,16 +11,17 @@ pub struct Maze {
     pub width: usize,
     pub height: usize,
     pub grid: Vec<Vec<Cell>>,
+    pub level_id: u32,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      Maze struct      ///////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////////////////////////
 impl Maze {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, level_id: u32) -> Self {
         // Start with all walls
         let grid = vec![vec![Cell::Wall; width]; height];
-        Maze { width, height, grid }
+        Maze { width, height, grid, level_id }
     }
 
     pub fn set_path(&mut self, x: usize, y: usize) {
@@ -54,7 +55,7 @@ impl Maze {
     }
 
     fn level1() -> Self {
-        let mut maze = Maze::new(15, 15);
+        let mut maze = Maze::new(15, 15, 1);
         
         // Create a very simple, open maze with almost no walls
         // Just a basic L-shaped path from start to exit with some extra paths
@@ -128,7 +129,7 @@ impl Maze {
     }
 
     fn level2() -> Self {
-        let mut maze = Maze::new(25, 25);
+        let mut maze = Maze::new(25, 25, 2);
         
         // More complex maze with multiple paths and dead ends
         // Use a modified depth-first search approach
@@ -264,7 +265,7 @@ impl Maze {
     }
 
     fn level3() -> Self {
-        let mut maze = Maze::new(40, 40);
+        let mut maze = Maze::new(5, 5, 3);
         
         // Complex maze with many dead ends and challenging navigation
         // Use a recursive backtracking algorithm for proper maze generation
