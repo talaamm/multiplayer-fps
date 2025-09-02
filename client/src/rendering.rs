@@ -11,8 +11,8 @@ const RENDER_SCALE: f32 = 1.0;
 pub struct Bullet {
     pub x: f32,
     pub y: f32,
-    pub angle: f32,
-    pub lifetime: f32,
+    // pub angle: f32,
+    // pub lifetime: f32,
 }
 
 // ---------- Minimap ----------
@@ -328,7 +328,7 @@ pub fn draw_hud(
     player_count: usize,
     mouse_captured: bool,
     player: &Player,
-    has_moved_locally: bool,
+    // has_moved_locally: bool,
     map_change_mode: bool,
 ) {
     let fps = macroquad::time::get_fps();

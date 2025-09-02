@@ -393,10 +393,10 @@ async fn main() {
                                 pos: vec2(p.x, p.y),
                                 angle: p.angle,
                                 name: p.username.clone(),
-                                health: p.health,
-                                ammo: p.ammo,
-                                kills: p.kills,
-                                deaths: p.deaths,
+                                // health: p.health,
+                                // ammo: p.ammo,
+                                // kills: p.kills,
+                                // deaths: p.deaths,
                                 skin: PlayerSkin::from_id(p.player_id),
                             });
                         }
@@ -408,8 +408,8 @@ async fn main() {
                             bullets.push(Bullet {
                                 x: b.x,
                                 y: b.y,
-                                angle: b.angle,
-                                lifetime: b.lifetime,
+                                // angle: b.angle,
+                                // lifetime: b.lifetime,
                             });
                         }
                     }
@@ -419,10 +419,6 @@ async fn main() {
                     protocol::ServerToClient::Death(death_event) => {
                         println!("💀 {} killed {} with {}", 
                                 death_event.killer_id, death_event.victim_id, death_event.weapon);
-                    }
-                    protocol::ServerToClient::Respawn(respawn_event) => {
-                        println!("🔄 Player {} respawned at ({}, {})", 
-                                respawn_event.player_id, respawn_event.x, respawn_event.y);
                     }
                     protocol::ServerToClient::Pong(p) => {
                         if let Some(pi) = &mut ping_state {
@@ -478,8 +474,8 @@ async fn main() {
                     count,
                     mouse_captured,
                     &player,
-                    has_moved_locally,
-                    map_change_mode,
+                    // has_moved_locally,
+                     map_change_mode,
                 );
                 
                 // Draw crosshair when mouse is captured

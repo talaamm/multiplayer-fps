@@ -7,17 +7,21 @@ Key file: `server/src/main.rs`
   - Loads level and builds wire format via `maze_to_protocol`.
   - Initializes `ServerState` inside `parking_lot::Mutex`.
 - Outgoing send task
-  - An unbounded MPSC channel `(SocketAddr, ServerToClient)` feeds a Tokio task that encodes via `encode_server` and `send_to`.
+  - Unbounded MPSC `(SocketAddr, ServerToClient)` feeds a Tokio task that encodes via `protocol::encode_server` and `send_to`.
 - Broadcast/simulation task
-  - Ticks at 20Hz; advances bullets at 60Hz granularly; compiles a `Snapshot` with players and bullets and sends to all known client addresses.
+  - Ticks at 20Hz; advances bullets at 60Hz; compiles a `Snapshot` and sends to all known client addresses.
 - Receive loop
-  - `recv_from` reads packets; decoded with `protocol::decode_client` and matched:
-    - `Join`: registers player, assigns spawn, replies with `Accept{player_id, level}`.
-    - `Input`: movement and actions handled by `ServerState::handle_input`.
-    - `SelectLevel`: calls `change_level` to load a new maze and respawn all players; broadcasts new `Accept` (level payload) to all.
-    - `Leave`: removes mappings, notifies others via `PlayerLeft`.
-    - `Ping`: replies `Pong` with same nonce.
-    - Errors: replies `Error { message }`.
+  - `recv_from` → `protocol::decode_client` → match:
+    - `Join` → `register_player` → reply `Accept{player_id, level}`.
+    - `Input` → `handle_input` for movement/shooting.
+    - `SelectLevel` → `change_level` (reload maze, respawn, broadcast new `Accept{level}` with `player_id==0`).
+    - `Leave` → remove mappings and send `PlayerLeft`.
+    - `Ping` → reply `Pong`.
+    - Error → reply `Error { message }`.
+
+Notes
+- Single-player mode and terminal renderer were removed during minimization.
+- Minor cleanup: inlined encode helper, removed an unused temporary in bullet collision loop.
 
 ### Authoritative state
 

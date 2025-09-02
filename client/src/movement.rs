@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use crate::level::Level;
-use crate::player::RemotePlayer;
+// use crate::player::RemotePlayer;
 use crate::input::InputState;
 
 // ---------- Config ----------
@@ -31,24 +31,24 @@ fn collides_circle_grid(level: &Level, pos: Vec2) -> bool {
 }
 
 // Check if position collides with other players (for close combat)
-fn collides_with_players(pos: Vec2, others: &[RemotePlayer], my_id: Option<u64>) -> bool {
-    let min_distance = 0.25; // Minimum distance between players (reduced for closer combat)
+// fn collides_with_players(pos: Vec2, others: &[RemotePlayer], my_id: Option<u64>) -> bool {
+//     let min_distance = 0.25; // Minimum distance between players (reduced for closer combat)
     
-    for other in others {
-        // Skip self
-        if let Some(id) = my_id {
-            // We don't have player IDs in RemotePlayer, so we'll use a different approach
-            // For now, we'll allow very close proximity
-            continue;
-        }
+//     for other in others {
+//         // Skip self
+//         if let Some(id) = my_id {
+//             // We don't have player IDs in RemotePlayer, so we'll use a different approach
+//             // For now, we'll allow very close proximity
+//             continue;
+//         }
         
-        let distance = (pos - other.pos).length();
-        if distance < min_distance {
-            return true;
-        }
-    }
-    false
-}
+//         let distance = (pos - other.pos).length();
+//         if distance < min_distance {
+//             return true;
+//         }
+//     }
+//     false
+// }
 
 // ---------- Movement with robust collision ----------
 pub fn move_player(level: &Level, player: &mut crate::player::Player, input: &InputState, dt: f32) {

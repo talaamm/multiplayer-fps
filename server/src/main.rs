@@ -33,7 +33,7 @@ async fn main_multiplayer() -> anyhow::Result<()> {
         let socket_send = std::sync::Arc::clone(&socket);
         tokio::spawn(async move {
             while let Some((addr, msg)) = rx_out.recv().await {
-                if let Ok(bytes) = encode_server(&msg) {
+                if let Ok(bytes) = protocol::encode_server(&msg) {
                     let _ = socket_send.send_to(&bytes, addr).await;
                 }
             }
@@ -307,7 +307,7 @@ impl ServerState {
     fn handle_input(
         &mut self,
         input: protocol::InputUpdate,
-        tx_out: &tokio::sync::mpsc::UnboundedSender<(
+        _tx_out: &tokio::sync::mpsc::UnboundedSender<(
             std::net::SocketAddr,
             protocol::ServerToClient,
         )>,
@@ -393,7 +393,6 @@ impl ServerState {
             }
 
             // Check if bullet hit a player
-            let mut hit_player = false;
             for (player_id, player) in self.players.iter_mut() {
                 if *player_id == bullet.shooter_id {
                     continue; // Can't hit yourself
@@ -432,7 +431,6 @@ impl ServerState {
                         respawn_events.push((*player_id, *player_id));
                     }
 
-                    hit_player = true;
                     bullets_to_remove.push(i);
                     break;
                 }
@@ -577,7 +575,3 @@ fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
     }
 }
 
-// Helper function to encode server messages
-fn encode_server(msg: &protocol::ServerToClient) -> Result<Vec<u8>, protocol::ProtocolError> {
-    protocol::encode_server(msg)
-}

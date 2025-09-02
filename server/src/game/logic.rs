@@ -15,7 +15,7 @@ pub struct Maze {
     pub level_id: u32,
     pub name: String,
     pub description: String,
-    pub max_players: u8,
+    // pub max_players: u8,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +28,7 @@ impl Maze {
         level_id: u32,
         name: String,
         description: String,
-        max_players: u8,
+        _max_players: u8,
     ) -> Self {
         // Start with all walls
         let grid = vec![vec![Cell::Wall; width]; height];
@@ -39,7 +39,7 @@ impl Maze {
             level_id,
             name,
             description,
-            max_players,
+            // max_players,
         }
     }
 
@@ -71,19 +71,19 @@ impl Maze {
         matches!(self.grid[y][x], Cell::Path | Cell::SpawnPoint | Cell::Cover)
     }
 
-    pub fn is_spawn_point(&self, x: usize, y: usize) -> bool {
-        if x >= self.width || y >= self.height {
-            return false;
-        }
-        matches!(self.grid[y][x], Cell::SpawnPoint)
-    }
+    // pub fn is_spawn_point(&self, x: usize, y: usize) -> bool {
+    //     if x >= self.width || y >= self.height {
+    //         return false;
+    //     }
+    //     matches!(self.grid[y][x], Cell::SpawnPoint)
+    // }
 
-    pub fn is_cover(&self, x: usize, y: usize) -> bool {
-        if x >= self.width || y >= self.height {
-            return false;
-        }
-        matches!(self.grid[y][x], Cell::Cover)
-    }
+    // pub fn is_cover(&self, x: usize, y: usize) -> bool {
+    //     if x >= self.width || y >= self.height {
+    //         return false;
+    //     }
+    //     matches!(self.grid[y][x], Cell::Cover)
+    // }
 
     ///////////////////////////////////////      levels            /////////////////////////////////////
 
@@ -631,31 +631,31 @@ impl Maze {
     }
 
     // Ensure maze has enough walkable spaces for multiple players
-    pub fn has_enough_spawns(&self, required_count: usize) -> bool {
-        let mut walkable_count = 0;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if self.is_walkable(x, y) {
-                    walkable_count += 1;
-                    if walkable_count >= required_count {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
+    // pub fn has_enough_spawns(&self, required_count: usize) -> bool {
+    //     let mut walkable_count = 0;
+    //     for y in 0..self.height {
+    //         for x in 0..self.width {
+    //             if self.is_walkable(x, y) {
+    //                 walkable_count += 1;
+    //                 if walkable_count >= required_count {
+    //                     return true;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     false
+    // }
 
     // Get total number of walkable cells in the maze
-    pub fn total_walkable_cells(&self) -> usize {
-        let mut count = 0;
-        for y in 0..self.height {
-            for x in 0..self.width {
-                if self.is_walkable(x, y) {
-                    count += 1;
-                }
-            }
-        }
-        count
-    }
+    // pub fn total_walkable_cells(&self) -> usize {
+    //     let mut count = 0;
+    //     for y in 0..self.height {
+    //         for x in 0..self.width {
+    //             if self.is_walkable(x, y) {
+    //                 count += 1;
+    //             }
+    //         }
+    //     }
+    //     count
+    // }
 }

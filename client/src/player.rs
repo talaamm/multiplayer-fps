@@ -101,10 +101,10 @@ pub struct RemotePlayer {
     pub pos: Vec2,
     pub angle: f32,
     pub name: String,
-    pub health: u8,
-    pub ammo: u8,
-    pub kills: u32,
-    pub deaths: u32,
+    // pub health: u8,
+    // pub ammo: u8,
+    // pub kills: u32,
+    // pub deaths: u32,
     pub skin: PlayerSkin,
 }
 
