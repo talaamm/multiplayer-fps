@@ -13,7 +13,13 @@ pub struct Level {
 
 impl Level {
     pub fn new(w: usize, h: usize, tiles: Vec<u8>, name: String, description: String) -> Self {
-        Self { w, h, tiles, name, description }
+        Self {
+            w,
+            h,
+            tiles,
+            name,
+            description,
+        }
     }
 
     // Safe cell access: out-of-bounds are treated as walls

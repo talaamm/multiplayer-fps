@@ -22,10 +22,25 @@ pub struct Maze {
 ///////////////////////////////////////      Maze struct      ///////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 impl Maze {
-    pub fn new(width: usize, height: usize, level_id: u32, name: String, description: String, max_players: u8) -> Self {
+    pub fn new(
+        width: usize,
+        height: usize,
+        level_id: u32,
+        name: String,
+        description: String,
+        max_players: u8,
+    ) -> Self {
         // Start with all walls
         let grid = vec![vec![Cell::Wall; width]; height];
-        Maze { width, height, grid, level_id, name, description, max_players }
+        Maze {
+            width,
+            height,
+            grid,
+            level_id,
+            name,
+            description,
+            max_players,
+        }
     }
 
     pub fn set_path(&mut self, x: usize, y: usize) {
@@ -50,17 +65,23 @@ impl Maze {
     }
 
     pub fn is_walkable(&self, x: usize, y: usize) -> bool {
-        if x >= self.width || y >= self.height { return false; }
+        if x >= self.width || y >= self.height {
+            return false;
+        }
         matches!(self.grid[y][x], Cell::Path | Cell::SpawnPoint | Cell::Cover)
     }
 
     pub fn is_spawn_point(&self, x: usize, y: usize) -> bool {
-        if x >= self.width || y >= self.height { return false; }
+        if x >= self.width || y >= self.height {
+            return false;
+        }
         matches!(self.grid[y][x], Cell::SpawnPoint)
     }
 
     pub fn is_cover(&self, x: usize, y: usize) -> bool {
-        if x >= self.width || y >= self.height { return false; }
+        if x >= self.width || y >= self.height {
+            return false;
+        }
         matches!(self.grid[y][x], Cell::Cover)
     }
 
@@ -79,8 +100,15 @@ impl Maze {
 
     // Arena-style map - good for close combat
     fn level1_arena() -> Self {
-        let mut maze = Maze::new(20, 20, 1, "The Arena".to_string(), "Close-quarters combat arena".to_string(), 8);
-        
+        let mut maze = Maze::new(
+            20,
+            20,
+            1,
+            "The Arena".to_string(),
+            "Close-quarters combat arena".to_string(),
+            8,
+        );
+
         // Create a central arena with surrounding paths
         // Outer ring
         for x in 1..19 {
@@ -91,14 +119,14 @@ impl Maze {
             maze.set_path(1, y);
             maze.set_path(18, y);
         }
-        
+
         // Inner arena area
         for x in 3..17 {
             for y in 3..17 {
                 maze.set_path(x, y);
             }
         }
-        
+
         // Add some cover in the center
         maze.set_cover(8, 8);
         maze.set_cover(9, 8);
@@ -112,24 +140,37 @@ impl Maze {
         maze.set_cover(9, 11);
         maze.set_cover(10, 11);
         maze.set_cover(11, 11);
-        
+
         // Spawn points around the arena
         let spawn_points = [
-            (2, 2), (17, 2), (2, 17), (17, 17), // Corners
-            (10, 2), (10, 17), (2, 10), (17, 10), // Mid-sides
+            (2, 2),
+            (17, 2),
+            (2, 17),
+            (17, 17), // Corners
+            (10, 2),
+            (10, 17),
+            (2, 10),
+            (17, 10), // Mid-sides
         ];
-        
+
         for &(x, y) in &spawn_points {
             maze.set_spawn_point(x, y);
         }
-        
+
         maze
     }
 
     // Corridor-based map - good for tactical gameplay
     fn level2_corridors() -> Self {
-        let mut maze = Maze::new(25, 25, 2, "The Corridors".to_string(), "Tactical corridor combat".to_string(), 10);
-        
+        let mut maze = Maze::new(
+            25,
+            25,
+            2,
+            "The Corridors".to_string(),
+            "Tactical corridor combat".to_string(),
+            10,
+        );
+
         // Create a grid of corridors with rooms
         // Horizontal corridors
         for x in 1..24 {
@@ -138,7 +179,7 @@ impl Maze {
             maze.set_path(x, 15);
             maze.set_path(x, 20);
         }
-        
+
         // Vertical corridors
         for y in 1..24 {
             maze.set_path(5, y);
@@ -146,42 +187,58 @@ impl Maze {
             maze.set_path(15, y);
             maze.set_path(20, y);
         }
-        
+
         // Create rooms at intersections
         for x in [4, 9, 14, 19] {
             for y in [4, 9, 14, 19] {
                 maze.set_path(x, y);
-                maze.set_path(x+1, y);
-                maze.set_path(x, y+1);
-                maze.set_path(x+1, y+1);
+                maze.set_path(x + 1, y);
+                maze.set_path(x, y + 1);
+                maze.set_path(x + 1, y + 1);
             }
         }
-        
+
         // Add cover in rooms
         for x in [4, 14] {
             for y in [4, 14] {
-                maze.set_cover(x+1, y+1);
+                maze.set_cover(x + 1, y + 1);
             }
         }
-        
+
         // Spawn points at room corners
         let spawn_points = [
-            (3, 3), (21, 3), (3, 21), (21, 21), // Corner rooms
-            (9, 3), (15, 3), (9, 21), (15, 21), // Side rooms
-            (3, 9), (21, 9), (3, 15), (21, 15), // Side rooms
+            (3, 3),
+            (21, 3),
+            (3, 21),
+            (21, 21), // Corner rooms
+            (9, 3),
+            (15, 3),
+            (9, 21),
+            (15, 21), // Side rooms
+            (3, 9),
+            (21, 9),
+            (3, 15),
+            (21, 15), // Side rooms
         ];
-        
+
         for &(x, y) in &spawn_points {
             maze.set_spawn_point(x, y);
         }
-        
+
         maze
     }
 
     // Compact zigzag maze - completely unique design
     fn level3_complex() -> Self {
-        let mut maze = Maze::new(20, 20, 3, "The Zigzag".to_string(), "Compact zigzag maze with tight corridors".to_string(), 12);
-        
+        let mut maze = Maze::new(
+            20,
+            20,
+            3,
+            "The Zigzag".to_string(),
+            "Compact zigzag maze with tight corridors".to_string(),
+            12,
+        );
+
         // Create a zigzag pattern that fills the maze densely
         // Start with outer walls
         for x in 0..20 {
@@ -192,7 +249,7 @@ impl Maze {
             maze.set_path(0, y);
             maze.set_path(19, y);
         }
-        
+
         // Create zigzag corridors
         for y in 2..18 {
             if y % 3 == 0 {
@@ -212,50 +269,72 @@ impl Maze {
                 }
             }
         }
-        
+
         // Add connecting corridors
         for x in [5, 15] {
             for y in 1..19 {
                 maze.set_path(x, y);
             }
         }
-        
+
         // Add strategic cover points
         let cover_positions = [
-            (3, 3), (16, 3), (3, 16), (16, 16), // Corner cover
+            (3, 3),
+            (16, 3),
+            (3, 16),
+            (16, 16), // Corner cover
             (10, 10), // Central cover
-            (7, 7), (12, 7), (7, 12), (12, 12), // Mid-cover
+            (7, 7),
+            (12, 7),
+            (7, 12),
+            (12, 12), // Mid-cover
         ];
-        
+
         for &(cx, cy) in &cover_positions {
             if maze.is_walkable(cx, cy) {
                 maze.set_cover(cx, cy);
             }
         }
-        
+
         // Strategic spawn points
         let spawn_points = [
-            (2, 2), (17, 2), (2, 17), (17, 17), // Corners
-            (10, 2), (10, 17), (2, 10), (17, 10), // Mid-sides
-            (5, 5), (14, 5), (5, 14), (14, 14), // Inner corners
+            (2, 2),
+            (17, 2),
+            (2, 17),
+            (17, 17), // Corners
+            (10, 2),
+            (10, 17),
+            (2, 10),
+            (17, 10), // Mid-sides
+            (5, 5),
+            (14, 5),
+            (5, 14),
+            (14, 14), // Inner corners
         ];
-        
+
         for &(sx, sy) in &spawn_points {
             if maze.is_walkable(sx, sy) {
                 maze.set_spawn_point(sx, sy);
             }
         }
-        
+
         maze
     }
 
     // Complex maze with multiple layers - good for tactical gameplay
     fn level4_symmetrical() -> Self {
-        let mut maze = Maze::new(28, 28, 4, "The Labyrinth".to_string(), "Complex multi-layer maze".to_string(), 10);
-        
+        let mut maze = Maze::new(
+            28,
+            28,
+            4,
+            "The Labyrinth".to_string(),
+            "Complex multi-layer maze".to_string(),
+            10,
+        );
+
         // Create a complex maze using recursive backtracking
         Maze::generate_recursive_maze(&mut maze, 1, 1);
-        
+
         // Add some strategic open areas
         for x in 8..20 {
             for y in 8..20 {
@@ -264,7 +343,7 @@ impl Maze {
                 }
             }
         }
-        
+
         // Add more cover throughout the maze
         for x in [3, 7, 11, 15, 19, 23] {
             for y in [3, 7, 11, 15, 19, 23] {
@@ -273,7 +352,7 @@ impl Maze {
                 }
             }
         }
-        
+
         // Find spawn points in walkable areas
         let mut spawn_count = 0;
         for y in 0..maze.height {
@@ -284,14 +363,21 @@ impl Maze {
                 }
             }
         }
-        
+
         maze
     }
 
     // Brutal death maze - extremely complex and challenging
     fn level5_open() -> Self {
-        let mut maze = Maze::new(25, 25, 5, "The Brutal Death Maze".to_string(), "Brutal death maze - extremely complex and challenging".to_string(), 15);
-        
+        let mut maze = Maze::new(
+            25,
+            25,
+            5,
+            "The Brutal Death Maze".to_string(),
+            "Brutal death maze - extremely complex and challenging".to_string(),
+            15,
+        );
+
         // Start with outer walls
         for x in 0..25 {
             maze.set_path(x, 0);
@@ -301,27 +387,29 @@ impl Maze {
             maze.set_path(0, y);
             maze.set_path(24, y);
         }
-        
+
         // Create a brutal death maze with extreme complexity
         // Layer 1: Create a complex interconnected network
         // Main horizontal corridors with gaps
         for y in [2, 6, 10, 14, 18, 22] {
             for x in 1..24 {
-                if x % 4 != 0 { // Create gaps every 4 cells
+                if x % 4 != 0 {
+                    // Create gaps every 4 cells
                     maze.set_path(x, y);
                 }
             }
         }
-        
+
         // Main vertical corridors with gaps
         for x in [2, 6, 10, 14, 18, 22] {
             for y in 1..24 {
-                if y % 4 != 0 { // Create gaps every 4 cells
+                if y % 4 != 0 {
+                    // Create gaps every 4 cells
                     maze.set_path(x, y);
                 }
             }
         }
-        
+
         // Layer 2: Add diagonal corridors for extreme confusion
         // Diagonal corridors from top-left to bottom-right
         for i in 0..20 {
@@ -331,7 +419,7 @@ impl Maze {
                 maze.set_path(x, y);
             }
         }
-        
+
         // Diagonal corridors from top-right to bottom-left
         for i in 0..20 {
             let x = 22 - i;
@@ -340,7 +428,7 @@ impl Maze {
                 maze.set_path(x, y);
             }
         }
-        
+
         // Layer 3: Add deadly chokepoints and dead ends
         // Create deadly chokepoints at intersections
         for x in [4, 8, 12, 16, 20] {
@@ -358,7 +446,7 @@ impl Maze {
                 }
             }
         }
-        
+
         // Layer 4: Add extreme complexity with random patterns
         // Create additional confusing paths
         for i in 0..15 {
@@ -370,32 +458,32 @@ impl Maze {
                 maze.set_path(x, y + 1);
             }
         }
-        
+
         // Layer 5: Add deadly spiral-like patterns in corners
         // Top-left deadly zone
         for i in 0..6 {
             maze.set_path(3 + i, 3);
             maze.set_path(3, 3 + i);
         }
-        
+
         // Top-right deadly zone
         for i in 0..6 {
             maze.set_path(21 - i, 3);
             maze.set_path(21, 3 + i);
         }
-        
+
         // Bottom-left deadly zone
         for i in 0..6 {
             maze.set_path(3 + i, 21);
             maze.set_path(3, 21 - i);
         }
-        
+
         // Bottom-right deadly zone
         for i in 0..6 {
             maze.set_path(21 - i, 21);
             maze.set_path(21, 21 - i);
         }
-        
+
         // Add extreme cover throughout the maze - much more than level 4
         for x in [3, 7, 11, 15, 19, 23] {
             for y in [3, 7, 11, 15, 19, 23] {
@@ -404,35 +492,59 @@ impl Maze {
                 }
             }
         }
-        
+
         // Add additional strategic cover points in key areas
         let strategic_cover = [
             // Central death zone
-            (12, 12), (13, 12), (14, 12),
-            (11, 13), (15, 13),
-            (11, 14), (15, 14),
-            (12, 15), (13, 15), (14, 15),
-            
+            (12, 12),
+            (13, 12),
+            (14, 12),
+            (11, 13),
+            (15, 13),
+            (11, 14),
+            (15, 14),
+            (12, 15),
+            (13, 15),
+            (14, 15),
             // Corner death zones
-            (5, 5), (19, 5), (5, 19), (19, 19),
-            (6, 6), (18, 6), (6, 18), (18, 18),
-            
+            (5, 5),
+            (19, 5),
+            (5, 19),
+            (19, 19),
+            (6, 6),
+            (18, 6),
+            (6, 18),
+            (18, 18),
             // Mid-side death zones
-            (12, 5), (12, 19), (5, 12), (19, 12),
-            (11, 5), (13, 5), (11, 19), (13, 19),
-            (5, 11), (5, 13), (19, 11), (19, 13),
-            
+            (12, 5),
+            (12, 19),
+            (5, 12),
+            (19, 12),
+            (11, 5),
+            (13, 5),
+            (11, 19),
+            (13, 19),
+            (5, 11),
+            (5, 13),
+            (19, 11),
+            (19, 13),
             // Internal death zones
-            (10, 10), (14, 10), (10, 14), (14, 14),
-            (11, 11), (13, 11), (11, 13), (13, 13),
+            (10, 10),
+            (14, 10),
+            (10, 14),
+            (14, 14),
+            (11, 11),
+            (13, 11),
+            (11, 13),
+            (13, 13),
         ];
-        
+
         for &(cx, cy) in &strategic_cover {
             if maze.is_walkable(cx, cy) {
                 maze.set_cover(cx, cy);
             }
         }
-        
+
         // Find spawn points in walkable areas - much more than level 4
         let mut spawn_count = 0;
         for y in 0..maze.height {
@@ -443,23 +555,23 @@ impl Maze {
                 }
             }
         }
-        
+
         maze
     }
-    
+
     // Bonus: Auto-maze generator algorithm using recursive backtracking
     fn generate_recursive_maze(maze: &mut Maze, x: usize, y: usize) {
         if x >= maze.width - 1 || y >= maze.height - 1 || x == 0 || y == 0 {
             return;
         }
-        
+
         maze.set_path(x, y);
-        
+
         // Directions: up, right, down, left
         let directions = [(0, -2), (2, 0), (0, 2), (-2, 0)];
         let _rng = std::collections::hash_map::DefaultHasher::new();
         use std::hash::{Hash, Hasher};
-        
+
         // Shuffle directions using a simple hash-based approach
         let mut dirs = directions.to_vec();
         for i in 0..dirs.len() {
@@ -468,13 +580,17 @@ impl Maze {
             let j = (hasher.finish() as usize) % dirs.len();
             dirs.swap(i, j);
         }
-        
+
         for &(dx, dy) in &dirs {
             let nx = (x as i32 + dx) as usize;
             let ny = (y as i32 + dy) as usize;
-            
-            if nx > 0 && nx < maze.width - 1 && ny > 0 && ny < maze.height - 1 
-               && maze.grid[ny][nx] == Cell::Wall {
+
+            if nx > 0
+                && nx < maze.width - 1
+                && ny > 0
+                && ny < maze.height - 1
+                && maze.grid[ny][nx] == Cell::Wall
+            {
                 // Carve path to neighbor
                 let wall_x = (x as i32 + dx / 2) as usize;
                 let wall_y = (y as i32 + dy / 2) as usize;
@@ -490,23 +606,27 @@ impl Maze {
             for x in 0..self.width {
                 if self.grid[y][x] == Cell::SpawnPoint {
                     pts.push((x, y));
-                    if pts.len() == count { break 'outer; }
+                    if pts.len() == count {
+                        break 'outer;
+                    }
                 }
             }
         }
-        
+
         // If not enough spawn points, add walkable areas
         if pts.len() < count {
             'outer2: for y in 0..self.height {
                 for x in 0..self.width {
                     if self.is_walkable(x, y) && !pts.contains(&(x, y)) {
                         pts.push((x, y));
-                        if pts.len() == count { break 'outer2; }
+                        if pts.len() == count {
+                            break 'outer2;
+                        }
                     }
                 }
             }
         }
-        
+
         pts
     }
 
@@ -538,134 +658,4 @@ impl Maze {
         }
         count
     }
-
-    // Test function to verify maze can handle multiple players
-    pub fn test_multiplayer_support(&self) {
-        let total_walkable = self.total_walkable_cells();
-        let can_handle_10 = self.has_enough_spawns(10);
-        let spawn_points_10 = self.spawn_points(10);
-        
-        println!("=== Multiplayer Support Test ===");
-        println!("Map: {} - {}", self.name, self.description);
-        println!("Total walkable cells: {}", total_walkable);
-        println!("Can handle 10 players: {}", can_handle_10);
-        println!("Available spawn points for 10 players: {}", spawn_points_10.len());
-        println!("First 5 spawn points: {:?}", &spawn_points_10[..spawn_points_10.len().min(5)]);
-        println!("================================");
-    }
-
-    // Get available levels for selection
-    pub fn get_available_levels() -> Vec<(u8, String, String, u8)> {
-        vec![
-            (1, "The Arena".to_string(), "Close-quarters combat arena".to_string(), 8),
-            (2, "The Corridors".to_string(), "Tactical corridor combat".to_string(), 10),
-            (3, "The Complex".to_string(), "Complex maze with many paths".to_string(), 12),
-            (4, "Symmetry".to_string(), "Symmetrical deathmatch arena".to_string(), 8),
-            (5, "Open Field".to_string(), "Open field for long-range combat".to_string(), 15),
-        ]
-    }
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////      Maze struct      ///////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////      Player Logic    ///////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-pub struct Player {
-   pub x: usize,
-   pub y: usize,
-   pub health: u8,
-   pub ammo: u8,
-   pub kills: u32,
-   pub deaths: u32,
-   pub last_shot_time: f64,
-}
-
-impl Player {
-    pub fn new(x: usize, y: usize) -> Self {
-        Player { 
-            x, 
-            y, 
-            health: 100,
-            ammo: 30,
-            kills: 0,
-            deaths: 0,
-            last_shot_time: 0.0,
-        }
-    }
-
-    // Player movement mechanics with collision detection
-    pub fn move_up(&mut self, maze: &Maze) {
-        if self.y > 0 && maze.is_walkable(self.x, self.y - 1) {
-            self.y -= 1;
-            // Moves the player up
-        }
-    }
-
-    pub fn move_down(&mut self, maze: &Maze) {
-        if self.y + 1 < maze.height && maze.is_walkable(self.x, self.y + 1) {
-            self.y += 1;
-            // Moves the player down
-        }
-    }
-
-    pub fn move_left(&mut self, maze: &Maze) {
-        if self.x > 0 && maze.is_walkable(self.x - 1, self.y) {
-            self.x -= 1;
-            // Moves the player left
-        }
-    }
-
-    pub fn move_right(&mut self, maze: &Maze) {
-        if self.x + 1 < maze.width && maze.is_walkable(self.x + 1, self.y) {
-            self.x += 1;    
-            // Moves the player right
-        }
-    }
-
-    // FPS mechanics
-    pub fn take_damage(&mut self, damage: u8) -> bool {
-        if self.health > damage {
-            self.health -= damage;
-            false // Not dead
-        } else {
-            self.health = 0;
-            self.deaths += 1;
-            true // Dead
-        }
-    }
-
-    pub fn heal(&mut self, amount: u8) {
-        self.health = (self.health + amount).min(100);
-    }
-
-    pub fn add_ammo(&mut self, amount: u8) {
-        self.ammo = (self.ammo + amount).min(100);
-    }
-
-    pub fn can_shoot(&self, current_time: f64) -> bool {
-        self.ammo > 0 && (current_time - self.last_shot_time) > 0.5 // 0.5 second cooldown
-    }
-
-    pub fn shoot(&mut self, current_time: f64) -> bool {
-        if self.can_shoot(current_time) {
-            self.ammo -= 1;
-            self.last_shot_time = current_time;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn respawn(&mut self, x: usize, y: usize) {
-        self.x = x;
-        self.y = y;
-        self.health = 100;
-        self.ammo = 30;
-    }
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////      Player Logic    ///////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
