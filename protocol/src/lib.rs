@@ -5,9 +5,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 #[derive(Debug, Clone, Copy, Serialize_repr, Deserialize_repr, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Action {
-    None = 0,  // No action
-    Move = 1,  // Movement input
-    Ping = 3,  // Ping for latency measurement
+    None = 0,      // No action
+    Move = 1,      // Movement input
+    Shoot = 2,     // Shooting action
+    Ping = 3,      // Ping for latency measurement
+    SelectLevel = 4, // Level selection
 }
 
 /// Describes the state of a player in the game.
@@ -21,6 +23,22 @@ pub struct PlayerState {
     pub angle: f32,
     pub health: u8,
     pub score: u32,
+    pub ammo: u8,
+    pub kills: u32,
+    pub deaths: u32,
+}
+
+/// Represents a bullet in the game world.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bullet {
+    pub bullet_id: u64,
+    pub shooter_id: u64,
+    pub x: f32,
+    pub y: f32,
+    pub angle: f32,
+    pub speed: f32,
+    pub damage: u8,
+    pub lifetime: f32,
 }
 
 /// Represents a single cell in the maze.
@@ -41,6 +59,24 @@ pub struct MazeLevel {
     pub width: u32,
     pub height: u32,
     pub cells: Vec<MazeCell>,
+    pub name: String,
+    pub description: String,
+}
+
+/// Available levels for selection
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelList {
+    pub levels: Vec<LevelInfo>,
+}
+
+/// Information about a specific level
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelInfo {
+    pub level_id: u32,
+    pub name: String,
+    pub description: String,
+    pub max_players: u8,
+    pub size: (u32, u32),
 }
 
 /// Sent by client to request joining the game.
@@ -95,6 +131,41 @@ pub struct Pong {
 pub struct Snapshot {
     pub server_time_ms: u64,
     pub players: Vec<PlayerState>,
+    pub bullets: Vec<Bullet>,
+}
+
+/// Sent when a player is hit by a bullet
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HitEvent {
+    pub shooter_id: u64,
+    pub victim_id: u64,
+    pub damage: u8,
+    pub bullet_id: u64,
+}
+
+/// Sent when a player dies
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeathEvent {
+    pub victim_id: u64,
+    pub killer_id: u64,
+    pub weapon: String,
+}
+
+/// Sent when a player respawns
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RespawnEvent {
+    pub player_id: u64,
+    pub x: f32,
+    pub y: f32,
+    pub health: u8,
+    pub ammo: u8,
+}
+
+/// Sent by client to select a level
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LevelSelection {
+    pub player_id: u64,
+    pub level_id: u32,
 }
 
 /// All possible messages sent from client to server.
@@ -105,6 +176,7 @@ pub enum ClientToServer {
     Input(InputUpdate),
     Leave(LeaveNotice),
     Ping(Ping),
+    SelectLevel(LevelSelection),
 }
 
 /// All possible messages sent from server to client.
@@ -115,6 +187,10 @@ pub enum ServerToClient {
     Snapshot(Snapshot),
     PlayerLeft(LeaveNotice),
     Pong(Pong),
+    Hit(HitEvent),
+    Death(DeathEvent),
+    Respawn(RespawnEvent),
+    LevelList(LevelList),
     Error { message: String },
 }
 

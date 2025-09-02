@@ -13,7 +13,8 @@ fn render_with_player(maze: &Maze, px: usize, py: usize) {
                 let ch = match maze.grid[y][x] {
                     Cell::Wall => '#',
                     Cell::Path => ' ',
-                    Cell::Exit => 'E',
+                    Cell::SpawnPoint => 'S',
+                    Cell::Cover => 'C',
                 };
                 print!("{ch}");
             }
@@ -23,10 +24,10 @@ fn render_with_player(maze: &Maze, px: usize, py: usize) {
 }
 
 fn main_single_player() {
-    let mut lvl = 1;
+    let lvl = 1;
 
     // choose a level
-    let mut maze = Maze::load_level(lvl);
+    let maze = Maze::load_level(lvl);
 
     // Test multiplayer support
     maze.test_multiplayer_support();
@@ -35,31 +36,15 @@ fn main_single_player() {
     let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((0, 0));
     let mut p = Player::new(sx, sy);
 
-    println!("Controls: W/A/S/D to move, Q to quit. Reach 'E' to win!\n");
+    println!("Controls: W/A/S/D to move, Q to quit. FPS Deathmatch Mode!\n");
 
     loop {
         // clear screen (simple)
         print!("\x1B[2J\x1B[H"); // ANSI clear + home
         render_with_player(&maze, p.x, p.y);
 
-        if p.at_exit(&maze) {
-            lvl += 1;
-            if lvl > 3 {
-                println!("\nYou reached the EXIT! 🎉");
-                break;
-            }
-            maze = Maze::load_level(lvl);
-            // Get a new spawn point for the new level
-            let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((1, 1));
-            p.x = sx;
-            p.y = sy;
-            println!(
-                "\nLevel {} loaded! Starting at position ({}, {})",
-                lvl, sx, sy
-            );
-        }
-
-        println!("\nPos: ({}, {}). Move [W/A/S/D], Quit [Q]: ", p.x, p.y);
+        println!("\nPos: ({}, {}). Health: {}, Ammo: {}, Kills: {}, Deaths: {}. Move [W/A/S/D], Quit [Q]: ", 
+                 p.x, p.y, p.health, p.ammo, p.kills, p.deaths);
 
         // non-blocking single-char read (simple blocking read fallback)
         let mut buf = [0u8; 1];
@@ -99,7 +84,7 @@ async fn main_multiplayer() -> anyhow::Result<()> {
     let bind_addr = std::env::var("SERVER_BIND").unwrap_or_else(|_| "0.0.0.0:34254".to_string());
     let broadcast_hz: u64 = 20;
     let socket = std::sync::Arc::new(tokio::net::UdpSocket::bind(&bind_addr).await?);
-    println!("Server listening on {}", socket.local_addr()?);
+    println!("Maze War FPS Server listening on {}", socket.local_addr()?);
 
     // ---- Load your maze + make wire level ----
     let logic_maze = Maze::load_level(1); // Start at level 1
@@ -132,61 +117,18 @@ async fn main_multiplayer() -> anyhow::Result<()> {
         tokio::spawn(async move {
             let mut ticker =
                 tokio::time::interval(std::time::Duration::from_millis(1000 / broadcast_hz));
-            let mut last_level_check = std::time::Instant::now();
-            let level_check_cooldown = std::time::Duration::from_secs(2); // Only check every 2 seconds
+            let mut bullet_timer = 0.0;
+            let bullet_update_rate = 1.0 / 60.0; // 60 FPS for bullets
 
             loop {
                 ticker.tick().await;
+                bullet_timer += 1.0 / broadcast_hz as f32;
 
-                // Check for exit completion and handle level progression (with cooldown)
-                let level_advanced = {
-                    let now = std::time::Instant::now();
-                    if now.duration_since(last_level_check) >= level_check_cooldown {
-                        last_level_check = now;
-                        let mut st = state_for_broadcast.lock();
-                        if let Some(completed_level) = st.check_exits() {
-                            println!(
-                                "🎯 Level {} completed! Advancing to next level...",
-                                completed_level
-                            );
-                            /*If the server prints level_id = 3 but the client still sees 2, the bug is in the protocol serialization/deserialization.
-                            If the server prints level_id = 2 when it should be 3, the bug is in the server's level advancement logic. */
-                            st.advance_level(&tx_out_broadcast); // <-- pass the sender here
-                            println!(
-                                "SERVER DEBUG: Broadcasting level_id = {}",
-                                st.wire_level.level_id
-                            );
-                            true
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                };
-
-                // If level advanced, send new level data to all clients
-                if level_advanced {
-                    println!("🚀 Sending new level data to all clients");
-                    let new_level_data = {
-                        let st = state_for_broadcast.lock();
-                        st.wire_level.clone()
-                    };
-
-                    let level_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
-                        player_id: 0, // Special ID for level change
-                        level: new_level_data,
-                    });
-
-                    let addrs: Vec<std::net::SocketAddr> = {
-                        let st = state_for_broadcast.lock();
-                        st.addr_by_player.values().copied().collect()
-                    };
-                    println!("📤 Broadcasting level change to {} clients", addrs.len());
-                    for addr in addrs {
-                        println!("SERVER DEBUG: Sending message to {}: {:?}", addr, level_msg);
-                        let _ = tx_out_broadcast.send((addr, level_msg.clone()));
-                    }
+                // Update bullets
+                if bullet_timer >= bullet_update_rate {
+                    bullet_timer = 0.0;
+                    let mut st = state_for_broadcast.lock();
+                    st.update_bullets(&tx_out_broadcast);
                 }
 
                 let snapshot = {
@@ -202,6 +144,24 @@ async fn main_multiplayer() -> anyhow::Result<()> {
                             angle: info.angle,
                             health: info.health,
                             score: info.score,
+                            ammo: info.ammo,
+                            kills: info.kills,
+                            deaths: info.deaths,
+                        })
+                        .collect::<Vec<_>>();
+
+                    let bullets = st
+                        .bullets
+                        .iter()
+                        .map(|bullet| protocol::Bullet {
+                            bullet_id: bullet.bullet_id,
+                            shooter_id: bullet.shooter_id,
+                            x: bullet.x,
+                            y: bullet.y,
+                            angle: bullet.angle,
+                            speed: bullet.speed,
+                            damage: bullet.damage,
+                            lifetime: bullet.lifetime,
                         })
                         .collect::<Vec<_>>();
 
@@ -213,6 +173,7 @@ async fn main_multiplayer() -> anyhow::Result<()> {
                     protocol::ServerToClient::Snapshot(protocol::Snapshot {
                         server_time_ms: now_ms,
                         players,
+                        bullets,
                     })
                 };
 
@@ -249,9 +210,15 @@ async fn main_multiplayer() -> anyhow::Result<()> {
             }
 
             Ok(protocol::ClientToServer::Input(input)) => {
-                // Validate movement using your maze (no walking through walls)
+                // Handle movement and shooting
                 let mut st = state.lock();
-                st.try_apply_input(input.player_id, input.x, input.y, input.angle);
+                st.handle_input(input, &tx_out);
+            }
+
+            Ok(protocol::ClientToServer::SelectLevel(selection)) => {
+                // Handle level selection
+                let mut st = state.lock();
+                st.change_level(selection.level_id, &tx_out);
             }
 
             Ok(protocol::ClientToServer::Leave(leave)) => {
@@ -299,7 +266,25 @@ struct PlayerInfo {
     angle: f32,
     health: u8,
     score: u32,
+    ammo: u8,
+    kills: u32,
+    deaths: u32,
     last_seen: std::time::Instant,
+    last_shot_time: f64,
+}
+
+// Bullet information
+#[derive(Debug, Clone)]
+struct BulletInfo {
+    bullet_id: u64,
+    shooter_id: u64,
+    x: f32,
+    y: f32,
+    angle: f32,
+    speed: f32,
+    damage: u8,
+    lifetime: f32,
+    max_lifetime: f32,
 }
 
 // Shared server state.
@@ -314,6 +299,10 @@ struct ServerState {
     addr_by_player: std::collections::HashMap<u64, std::net::SocketAddr>, // player_id -> address
     player_by_addr: std::collections::HashMap<std::net::SocketAddr, u64>, // address -> player_id
     next_player_id: u64,
+    next_bullet_id: u64,
+
+    // Bullets in the world
+    bullets: Vec<BulletInfo>,
 
     // Precomputed spawn points from your maze logic
     spawns: Vec<(usize, usize)>,
@@ -339,6 +328,8 @@ impl ServerState {
             addr_by_player: std::collections::HashMap::new(),
             player_by_addr: std::collections::HashMap::new(),
             next_player_id: 1,
+            next_bullet_id: 1,
+            bullets: Vec::new(),
             spawns,
             spawn_cursor: 0,
         }
@@ -369,7 +360,11 @@ impl ServerState {
             angle: 0.0,
             health: 100,
             score: 0,
+            ammo: 30,
+            kills: 0,
+            deaths: 0,
             last_seen: std::time::Instant::now(),
+            last_shot_time: 0.0,
         };
 
         self.players.insert(player_id, info.clone());
@@ -378,140 +373,245 @@ impl ServerState {
         (player_id, info)
     }
 
-    /// Validates a world-space move against your maze.
-    /// For now we treat 1 world unit == 1 maze tile; we accept the move if the target tile is walkable.
-    fn try_apply_input(&mut self, player_id: u64, new_x: f32, new_y: f32, new_angle: f32) {
-        if let Some(p) = self.players.get_mut(&player_id) {
-            let gx = if new_x >= 0.0 {
-                new_x.floor() as usize
+    /// Handles player input including movement and shooting
+    fn handle_input(
+        &mut self,
+        input: protocol::InputUpdate,
+        tx_out: &tokio::sync::mpsc::UnboundedSender<(
+            std::net::SocketAddr,
+            protocol::ServerToClient,
+        )>,
+    ) {
+        if let Some(p) = self.players.get_mut(&input.player_id) {
+            // Handle movement
+            let gx = if input.x >= 0.0 {
+                input.x.floor() as usize
             } else {
                 usize::MAX
-            }; // outside -> reject
-            let gy = if new_y >= 0.0 {
-                new_y.floor() as usize
+            };
+            let gy = if input.y >= 0.0 {
+                input.y.floor() as usize
             } else {
                 usize::MAX
             };
             if gx != usize::MAX && gy != usize::MAX && self.logic_maze.is_walkable(gx, gy) {
-                p.pos_x = new_x;
-                p.pos_y = new_y;
-                p.angle = new_angle;
+                p.pos_x = input.x;
+                p.pos_y = input.y;
+                p.angle = input.angle;
                 p.last_seen = std::time::Instant::now();
-            } else {
-                // Reject invalid move; optional: snap back or ignore silently
-                // (Here we just ignore; client will be corrected by snapshots.)
             }
-        }
-    }
 
-    /// Checks if any player has reached the exit and handles level progression
-    fn check_exits(&mut self) -> Option<u32> {
-        for (player_id, player) in self.players.iter() {
-            let gx = player.pos_x.floor() as usize;
-            let gy = player.pos_y.floor() as usize;
-
-            if gx < self.logic_maze.width && gy < self.logic_maze.height {
-                let cell = &self.logic_maze.grid[gy][gx];
-                if matches!(cell, Cell::Exit) {
-                    println!(
-                        "🎯 Player {} reached exit at ({}, {}) - Level {} completed!",
-                        player_id, gx, gy, self.logic_maze.level_id
-                    );
-                    return Some(self.logic_maze.level_id);
+            // Handle shooting
+            if input.action == protocol::Action::Shoot {
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64();
+                
+                if p.ammo > 0 && (current_time - p.last_shot_time) > 0.5 {
+                    p.ammo -= 1;
+                    p.last_shot_time = current_time;
+                    
+                    // Create bullet
+                    let bullet = BulletInfo {
+                        bullet_id: self.next_bullet_id,
+                        shooter_id: input.player_id,
+                        x: input.x,
+                        y: input.y,
+                        angle: input.angle,
+                        speed: 25.0, // Increased bullet speed for better gameplay
+                        damage: 25,
+                        lifetime: 0.0,
+                        max_lifetime: 3.0, // 3 seconds max
+                    };
+                    self.next_bullet_id += 1;
+                    self.bullets.push(bullet);
                 }
             }
         }
-        None
     }
 
-    /// Advances to the next level and resets all players
-    // fn advance_level(&mut self) {
-    //     let current_level = self.logic_maze.level_id;
-    //     let next_level = if current_level < 3 { current_level + 1 } else { 1 };
-
-    //     println!("🚀 Advancing from level {} to level {}", current_level, next_level);
-
-    //     // Load new maze
-    //     self.logic_maze = Maze::load_level(next_level as u8);
-
-    //     // Update wire level
-    //     self.wire_level = maze_to_protocol(next_level, &self.logic_maze);
-
-    //     // Reset spawn cursor
-    //     self.spawn_cursor = 0;
-
-    //     // Respawn all players at new spawn points
-    //     let player_count = self.players.len();
-    //     println!("🔄 Respawning {} players for new level", player_count);
-
-    //     // Collect spawn points first to avoid borrowing conflicts
-    //     let mut spawn_points = Vec::new();
-    //     for _ in 0..player_count {
-    //         spawn_points.push(self.next_spawn());
-    //     }
-
-    //     // Now update player positions
-    //     for (i, (player_id, player)) in self.players.iter_mut().enumerate() {
-    //         let (sx, sy) = spawn_points[i];
-    //         player.pos_x = sx;
-    //         player.pos_y = sy;
-    //         player.angle = 0.0;
-    //         player.health = 100; // Reset health
-    //         println!("📍 Respawned player {} at ({}, {})", player_id, sx, sy);
-    //     }
-    // }
-    fn advance_level(
+    /// Updates bullet positions and handles collisions
+    fn update_bullets(
         &mut self,
         tx_out: &tokio::sync::mpsc::UnboundedSender<(
             std::net::SocketAddr,
             protocol::ServerToClient,
         )>,
     ) {
-        // Advance level (wrap after 3)
-        let next_level = match self.wire_level.level_id {
-            1 => 2,
-            2 => 3,
-            _ => 1,
-        };
-        println!(
-            "Advancing from level {} to {}",
-            self.wire_level.level_id, next_level
-        );
-        self.logic_maze = Maze::load_level(next_level as u8);
-        self.wire_level = maze_to_protocol(next_level, &self.logic_maze);
+        let dt = 1.0 / 60.0; // 60 FPS
+        let mut bullets_to_remove = Vec::new();
+        let mut hit_events = Vec::new();
+        let mut death_events = Vec::new();
+        let mut respawn_events = Vec::new();
+
+        for (i, bullet) in self.bullets.iter_mut().enumerate() {
+            // Update bullet position
+            bullet.x += bullet.angle.cos() * bullet.speed * dt;
+            bullet.y += bullet.angle.sin() * bullet.speed * dt;
+            bullet.lifetime += dt;
+
+            // Check if bullet hit a wall
+            let gx = bullet.x.floor() as usize;
+            let gy = bullet.y.floor() as usize;
+            if gx >= self.logic_maze.width || gy >= self.logic_maze.height || 
+               !self.logic_maze.is_walkable(gx, gy) {
+                bullets_to_remove.push(i);
+                continue;
+            }
+
+            // Check if bullet hit a player
+            let mut hit_player = false;
+            for (player_id, player) in self.players.iter_mut() {
+                if *player_id == bullet.shooter_id {
+                    continue; // Can't hit yourself
+                }
+
+                let dx = bullet.x - player.pos_x;
+                let dy = bullet.y - player.pos_y;
+                let distance = (dx * dx + dy * dy).sqrt();
+
+                if distance < 0.5 { // Hit radius
+                    // Player hit!
+                    let was_alive = player.health > 0;
+                    if player.health > bullet.damage {
+                        player.health -= bullet.damage;
+                    } else {
+                        player.health = 0;
+                        player.deaths += 1;
+                    }
+
+                    hit_events.push(protocol::HitEvent {
+                        shooter_id: bullet.shooter_id,
+                        victim_id: *player_id,
+                        damage: bullet.damage,
+                        bullet_id: bullet.bullet_id,
+                    });
+
+                    if was_alive && player.health == 0 {
+                        death_events.push(protocol::DeathEvent {
+                            victim_id: *player_id,
+                            killer_id: bullet.shooter_id,
+                            weapon: "Laser".to_string(),
+                        });
+
+                        // Prepare respawn event
+                        respawn_events.push((*player_id, *player_id));
+                    }
+
+                    hit_player = true;
+                    bullets_to_remove.push(i);
+                    break;
+                }
+            }
+
+            // Remove bullet if lifetime expired
+            if bullet.lifetime >= bullet.max_lifetime {
+                bullets_to_remove.push(i);
+            }
+        }
+
+        // Award kills to shooters (separate loop to avoid borrowing issues)
+        for event in &death_events {
+            if let Some(shooter) = self.players.get_mut(&event.killer_id) {
+                shooter.kills += 1;
+                shooter.score += 100;
+            }
+        }
+
+        // Handle respawns (separate loop to avoid borrowing issues)
+        let mut respawn_positions = Vec::new();
+        for _ in 0..respawn_events.len() {
+            respawn_positions.push(self.next_spawn());
+        }
+        
+        for ((player_id, _), (sx, sy)) in respawn_events.iter().zip(respawn_positions.iter()) {
+            if let Some(player) = self.players.get_mut(player_id) {
+                player.pos_x = *sx;
+                player.pos_y = *sy;
+                player.health = 100;
+                player.ammo = 30;
+                player.angle = 0.0;
+            }
+        }
+
+        // Remove bullets (in reverse order to maintain indices)
+        bullets_to_remove.sort_by(|a, b| b.cmp(a));
+        for &index in &bullets_to_remove {
+            if index < self.bullets.len() {
+                self.bullets.remove(index);
+            }
+        }
+
+        // Send hit and death events to all clients
+        let addrs: Vec<std::net::SocketAddr> = self.addr_by_player.values().copied().collect();
+        for event in hit_events {
+            for addr in &addrs {
+                let _ = tx_out.send((*addr, protocol::ServerToClient::Hit(event.clone())));
+            }
+        }
+        for event in death_events {
+            for addr in &addrs {
+                let _ = tx_out.send((*addr, protocol::ServerToClient::Death(event.clone())));
+            }
+        }
+    }
+
+    /// Changes the level and respawns all players
+    fn change_level(
+        &mut self,
+        level_id: u32,
+        _tx_out: &tokio::sync::mpsc::UnboundedSender<(
+            std::net::SocketAddr,
+            protocol::ServerToClient,
+        )>,
+    ) {
+        println!("🎯 SERVER: Changing to level {} ({} -> {})", level_id, self.logic_maze.name, self.logic_maze.level_id);
+        
+        // Load new maze
+        self.logic_maze = Maze::load_level(level_id as u8);
+        self.wire_level = maze_to_protocol(level_id, &self.logic_maze);
+        
+        println!("✅ SERVER: Loaded level {}: '{}' ({}x{})", level_id, self.logic_maze.name, self.logic_maze.width, self.logic_maze.height);
+        
+        // Update spawn points
         self.spawns = self.logic_maze.spawn_points(128);
         self.spawn_cursor = 0;
-
-        // Reset all player positions
-        for (_pid, info) in self.players.iter_mut() {
-            let (sx, sy) = self.spawns[self.spawn_cursor % self.spawns.len()];
-            self.spawn_cursor += 1;
-            info.pos_x = sx as f32 + 0.5;
-            info.pos_y = sy as f32 + 0.5;
-            info.angle = 0.0;
+        
+        // Clear bullets
+        self.bullets.clear();
+        
+        // Collect spawn positions first to avoid borrowing issues
+        let mut spawn_positions = Vec::new();
+        for _ in 0..self.players.len() {
+            spawn_positions.push(self.next_spawn());
         }
-
-        // Broadcast new maze to all clients
-        // for (addr, _info) in self.addr_to_id.iter() {
-        //     let accept_msg = protocol::ServerToClient::Accept(protocol::Accept {
-        //         level: self.wire_level.clone(),
-        //         player_id: 0, // 0 signals level change
-        //     });
-        //     let buf = protocol::encode_server(&accept_msg);
-        //     let _ = self.socket.send_to(&buf, addr);
-        // }
+        
+        // Respawn all players
+        for ((player_id, player), (sx, sy)) in self.players.iter_mut().zip(spawn_positions.iter()) {
+            player.pos_x = *sx;
+            player.pos_y = *sy;
+            player.health = 100;
+            player.ammo = 30;
+            player.angle = 0.0;
+        }
+        
+        // Send new level to all clients
+        let level_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
+            player_id: 0, // Special ID for level change
+            level: self.wire_level.clone(),
+        });
+        
         for addr in self.addr_by_player.values() {
-            let accept_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
-                level: self.wire_level.clone(),
-                player_id: 0, // 0 signals level change
-            });
-            let _ = tx_out.send((*addr, accept_msg));
+            let _ = _tx_out.send((*addr, level_msg.clone()));
         }
+        
+        println!("📤 SERVER: Sent level change to {} clients", self.addr_by_player.len());
     }
 }
 
 /// Convert your logical maze to the protocol's wire format.
-/// Simplest mapping: Cell::Wall => all edges = true; Path/Exit => all edges = false.
+/// Simplest mapping: Cell::Wall => all edges = true; Path/SpawnPoint/Cover => all edges = false.
 fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
     let mut cells = Vec::with_capacity(m.width * m.height);
     for y in 0..m.height {
@@ -530,6 +630,8 @@ fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
         width: m.width as u32,
         height: m.height as u32,
         cells,
+        name: m.name.clone(),
+        description: m.description.clone(),
     }
 }
 

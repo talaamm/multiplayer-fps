@@ -2,7 +2,8 @@
 pub enum Cell {
     Wall,
     Path,
-    Exit,
+    SpawnPoint, // New: dedicated spawn points for FPS
+    Cover,      // New: cover objects for tactical gameplay
 }
 
 #[derive(Debug)]
@@ -12,16 +13,19 @@ pub struct Maze {
     pub height: usize,
     pub grid: Vec<Vec<Cell>>,
     pub level_id: u32,
+    pub name: String,
+    pub description: String,
+    pub max_players: u8,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////      Maze struct      ///////////////////////////////////////
-/// /////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 impl Maze {
-    pub fn new(width: usize, height: usize, level_id: u32) -> Self {
+    pub fn new(width: usize, height: usize, level_id: u32, name: String, description: String, max_players: u8) -> Self {
         // Start with all walls
         let grid = vec![vec![Cell::Wall; width]; height];
-        Maze { width, height, grid, level_id }
+        Maze { width, height, grid, level_id, name, description, max_players }
     }
 
     pub fn set_path(&mut self, x: usize, y: usize) {
@@ -31,266 +35,414 @@ impl Maze {
         }
     }
 
-    pub fn set_exit(&mut self, x: usize, y: usize) {
+    pub fn set_spawn_point(&mut self, x: usize, y: usize) {
         if x < self.width && y < self.height {
-            self.grid[y][x] = Cell::Exit;
-            // Marks a cell as the Exit.
+            self.grid[y][x] = Cell::SpawnPoint;
+            // Marks a cell as a spawn point for FPS gameplay.
+        }
+    }
+
+    pub fn set_cover(&mut self, x: usize, y: usize) {
+        if x < self.width && y < self.height {
+            self.grid[y][x] = Cell::Cover;
+            // Marks a cell as cover (walkable but provides protection).
         }
     }
 
     pub fn is_walkable(&self, x: usize, y: usize) -> bool {
         if x >= self.width || y >= self.height { return false; }
-        !matches!(self.grid[y][x], Cell::Wall)
+        matches!(self.grid[y][x], Cell::Path | Cell::SpawnPoint | Cell::Cover)
+    }
+
+    pub fn is_spawn_point(&self, x: usize, y: usize) -> bool {
+        if x >= self.width || y >= self.height { return false; }
+        matches!(self.grid[y][x], Cell::SpawnPoint)
+    }
+
+    pub fn is_cover(&self, x: usize, y: usize) -> bool {
+        if x >= self.width || y >= self.height { return false; }
+        matches!(self.grid[y][x], Cell::Cover)
     }
 
     ///////////////////////////////////////      levels            /////////////////////////////////////
 
     pub fn load_level(level: u8) -> Self {
         match level {
-            1 => Maze::level1(),
-            2 => Maze::level2(),
-            3 => Maze::level3(),
-            _ => Maze::level1(),
+            1 => Maze::level1_arena(),
+            2 => Maze::level2_corridors(),
+            3 => Maze::level3_complex(),
+            4 => Maze::level4_symmetrical(),
+            5 => Maze::level5_open(),
+            _ => Maze::level1_arena(),
         }
     }
 
-    fn level1() -> Self {
-        let mut maze = Maze::new(15, 15, 1);
+    // Arena-style map - good for close combat
+    fn level1_arena() -> Self {
+        let mut maze = Maze::new(20, 20, 1, "The Arena".to_string(), "Close-quarters combat arena".to_string(), 8);
         
-        // Create a very simple, open maze with almost no walls
-        // Just a basic L-shaped path from start to exit with some extra paths
-        // Enhanced to support 10+ players comfortably
+        // Create a central arena with surrounding paths
+        // Outer ring
+        for x in 1..19 {
+            maze.set_path(x, 1);
+            maze.set_path(x, 18);
+        }
+        for y in 1..19 {
+            maze.set_path(1, y);
+            maze.set_path(18, y);
+        }
         
-        // Main path - simple L-shape from (1,1) to (13,13)
-        let main_path = vec![
-            // Start and go right
-            (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1), (9, 1), (10, 1), (11, 1), (12, 1), (13, 1),
-            // Go down to exit
-            (13, 2), (13, 3), (13, 4), (13, 5), (13, 6), (13, 7), (13, 8), (13, 9), (13, 10), (13, 11), (13, 12), (13, 13)
+        // Inner arena area
+        for x in 3..17 {
+            for y in 3..17 {
+                maze.set_path(x, y);
+            }
+        }
+        
+        // Add some cover in the center
+        maze.set_cover(8, 8);
+        maze.set_cover(9, 8);
+        maze.set_cover(10, 8);
+        maze.set_cover(11, 8);
+        maze.set_cover(8, 9);
+        maze.set_cover(11, 9);
+        maze.set_cover(8, 10);
+        maze.set_cover(11, 10);
+        maze.set_cover(8, 11);
+        maze.set_cover(9, 11);
+        maze.set_cover(10, 11);
+        maze.set_cover(11, 11);
+        
+        // Spawn points around the arena
+        let spawn_points = [
+            (2, 2), (17, 2), (2, 17), (17, 17), // Corners
+            (10, 2), (10, 17), (2, 10), (17, 10), // Mid-sides
         ];
         
-        for &(x, y) in &main_path {
-            maze.set_path(x, y);
+        for &(x, y) in &spawn_points {
+            maze.set_spawn_point(x, y);
         }
-        
-        // Make the maze more interesting with additional paths
-        // Add horizontal paths for variety and more spawn points
-        for x in 3..12 {
-            maze.set_path(x, 5);  // Middle horizontal path
-            maze.set_path(x, 9);  // Lower horizontal path
-        }
-        
-        // Add vertical paths for variety and more spawn points
-        for y in 3..12 {
-            maze.set_path(5, y);  // Left vertical path
-            maze.set_path(9, y);  // Right vertical path
-        }
-        
-        // Add some diagonal-like paths for extra exploration and spawn points
-        maze.set_path(3, 3); maze.set_path(4, 4); maze.set_path(5, 5);
-        maze.set_path(11, 3); maze.set_path(10, 4); maze.set_path(9, 5);
-        
-        // Add a small loop path for more spawn options
-        maze.set_path(7, 7); maze.set_path(8, 7); maze.set_path(8, 8); maze.set_path(7, 8);
-        
-        // Add some branching paths for more spawn points
-        maze.set_path(2, 7); maze.set_path(2, 8); maze.set_path(2, 9);
-        maze.set_path(12, 7); maze.set_path(12, 8); maze.set_path(12, 9);
-        
-        // Add additional open areas for more players
-        maze.set_path(4, 7); maze.set_path(4, 8); maze.set_path(4, 9);
-        maze.set_path(10, 7); maze.set_path(10, 8); maze.set_path(10, 9);
-        maze.set_path(6, 3); maze.set_path(6, 4);
-        maze.set_path(8, 3); maze.set_path(8, 4);
-        
-        // Add more dead ends and complex paths
-        maze.set_path(1, 3); maze.set_path(1, 4); maze.set_path(1, 5); // Left dead end
-        maze.set_path(1, 11); maze.set_path(1, 12); // Another left dead end
-        
-        maze.set_path(13, 3); maze.set_path(13, 4); maze.set_path(13, 5); // Right dead end
-        maze.set_path(13, 11); maze.set_path(13, 12); // Another right dead end
-        
-        // Add some isolated areas that are harder to reach
-        maze.set_path(3, 7); maze.set_path(3, 8); maze.set_path(3, 9);
-        maze.set_path(11, 7); maze.set_path(11, 8); maze.set_path(11, 9);
-        
-        // Add some cross paths for more complexity
-        maze.set_path(5, 7); maze.set_path(5, 8); maze.set_path(5, 9);
-        maze.set_path(9, 7); maze.set_path(9, 8); maze.set_path(9, 9);
-        
-        // Ensure there's a clear path from start to exit
-        maze.set_path(1, 1);  // Start point
-        maze.set_exit(13, 13);
-        
-        // Create a guaranteed path from start to exit
-        maze.create_guaranteed_path(1, 1, 13, 13);
         
         maze
     }
 
-    fn level2() -> Self {
-        let mut maze = Maze::new(25, 25, 2);
+    // Corridor-based map - good for tactical gameplay
+    fn level2_corridors() -> Self {
+        let mut maze = Maze::new(25, 25, 2, "The Corridors".to_string(), "Tactical corridor combat".to_string(), 10);
         
-        // More complex maze with multiple paths and dead ends
-        // Use a modified depth-first search approach
+        // Create a grid of corridors with rooms
+        // Horizontal corridors
+        for x in 1..24 {
+            maze.set_path(x, 5);
+            maze.set_path(x, 10);
+            maze.set_path(x, 15);
+            maze.set_path(x, 20);
+        }
         
-        // Start with all walls
-        for y in 0..maze.height {
-            for x in 0..maze.width {
-                maze.grid[y][x] = Cell::Wall;
+        // Vertical corridors
+        for y in 1..24 {
+            maze.set_path(5, y);
+            maze.set_path(10, y);
+            maze.set_path(15, y);
+            maze.set_path(20, y);
+        }
+        
+        // Create rooms at intersections
+        for x in [4, 9, 14, 19] {
+            for y in [4, 9, 14, 19] {
+                maze.set_path(x, y);
+                maze.set_path(x+1, y);
+                maze.set_path(x, y+1);
+                maze.set_path(x+1, y+1);
             }
         }
         
-        // Create main corridors with branching paths
-        let _corridor_width = 1;
+        // Add cover in rooms
+        for x in [4, 14] {
+            for y in [4, 14] {
+                maze.set_cover(x+1, y+1);
+            }
+        }
         
-        // Create a more complex maze structure instead of straight corridors
-        // Start with some key connection points but make them winding
+        // Spawn points at room corners
+        let spawn_points = [
+            (3, 3), (21, 3), (3, 21), (21, 21), // Corner rooms
+            (9, 3), (15, 3), (9, 21), (15, 21), // Side rooms
+            (3, 9), (21, 9), (3, 15), (21, 15), // Side rooms
+        ];
         
-        // Top area - winding path instead of straight line
-        maze.set_path(1, 1); maze.set_path(2, 1); maze.set_path(3, 1);
-        maze.set_path(5, 1); maze.set_path(7, 1); maze.set_path(9, 1);
-        maze.set_path(11, 1); maze.set_path(13, 1); maze.set_path(15, 1);
-        maze.set_path(17, 1); maze.set_path(19, 1); maze.set_path(21, 1);
-        maze.set_path(23, 1);
-        
-        // Center area - create a complex hub instead of straight lines
-        maze.set_path(1, 13); maze.set_path(3, 13); maze.set_path(5, 13);
-        maze.set_path(7, 13); maze.set_path(9, 13); maze.set_path(11, 13);
-        maze.set_path(13, 13); maze.set_path(15, 13); maze.set_path(17, 13);
-        maze.set_path(19, 13); maze.set_path(21, 13); maze.set_path(23, 13);
-        
-        // Bottom area - winding path
-        maze.set_path(1, 23); maze.set_path(3, 23); maze.set_path(5, 23);
-        maze.set_path(7, 23); maze.set_path(9, 23); maze.set_path(11, 23);
-        maze.set_path(13, 23); maze.set_path(15, 23); maze.set_path(17, 23);
-        maze.set_path(19, 23); maze.set_path(21, 23); maze.set_path(23, 23);
-        
-        // Left side - winding path
-        maze.set_path(1, 1); maze.set_path(1, 3); maze.set_path(1, 5);
-        maze.set_path(1, 7); maze.set_path(1, 9); maze.set_path(1, 11);
-        maze.set_path(1, 13); maze.set_path(1, 15); maze.set_path(1, 17);
-        maze.set_path(1, 19); maze.set_path(1, 21); maze.set_path(1, 23);
-        
-        // Right side - winding path
-        maze.set_path(23, 1); maze.set_path(23, 3); maze.set_path(23, 5);
-        maze.set_path(23, 7); maze.set_path(23, 9); maze.set_path(23, 11);
-        maze.set_path(23, 13); maze.set_path(23, 15); maze.set_path(23, 17);
-        maze.set_path(23, 19); maze.set_path(23, 21); maze.set_path(23, 23);
-        
-        // Add complex internal connections and dead ends
-        // Upper left area - complex maze-like structure
-        maze.set_path(3, 3); maze.set_path(3, 4); maze.set_path(3, 5);
-        maze.set_path(4, 3); maze.set_path(5, 3); maze.set_path(6, 3);
-        maze.set_path(4, 5); maze.set_path(5, 5); maze.set_path(6, 5);
-        maze.set_path(7, 4); maze.set_path(8, 4); // Dead end branch
-        
-        // Upper right area - complex maze-like structure
-        maze.set_path(21, 3); maze.set_path(21, 4); maze.set_path(21, 5);
-        maze.set_path(20, 3); maze.set_path(19, 3); maze.set_path(18, 3);
-        maze.set_path(20, 5); maze.set_path(19, 5); maze.set_path(18, 5);
-        maze.set_path(17, 4); maze.set_path(16, 4); // Dead end branch
-        
-        // Center area with complex branching and loops
-        maze.set_path(9, 9); maze.set_path(9, 10); maze.set_path(9, 11);
-        maze.set_path(10, 9); maze.set_path(11, 9); maze.set_path(12, 9);
-        maze.set_path(8, 11); maze.set_path(7, 11); maze.set_path(6, 11);
-        maze.set_path(10, 11); maze.set_path(11, 11); maze.set_path(12, 11);
-        
-        maze.set_path(15, 9); maze.set_path(15, 10); maze.set_path(15, 11);
-        maze.set_path(16, 9); maze.set_path(17, 9); maze.set_path(18, 9);
-        maze.set_path(14, 11); maze.set_path(13, 11); maze.set_path(12, 11);
-        maze.set_path(16, 11); maze.set_path(17, 11); maze.set_path(18, 11);
-        
-        // Lower area - complex maze-like structure
-        maze.set_path(3, 21); maze.set_path(3, 22);
-        maze.set_path(4, 21); maze.set_path(5, 21); maze.set_path(6, 21);
-        maze.set_path(4, 22); maze.set_path(5, 22); maze.set_path(6, 22);
-        maze.set_path(7, 21); maze.set_path(8, 21); // Dead end branch
-        
-        maze.set_path(21, 21); maze.set_path(21, 22);
-        maze.set_path(20, 21); maze.set_path(19, 21); maze.set_path(18, 21);
-        maze.set_path(20, 22); maze.set_path(19, 22); maze.set_path(18, 22);
-        maze.set_path(17, 21); maze.set_path(16, 21); // Dead end branch
-        
-        // Add more complex dead ends and isolated areas
-        maze.set_path(5, 5); maze.set_path(6, 5); maze.set_path(7, 5); // Long horizontal dead end
-        maze.set_path(17, 5); maze.set_path(18, 5); maze.set_path(19, 5); // Another long horizontal dead end
-        
-        maze.set_path(5, 17); maze.set_path(6, 17); maze.set_path(7, 17); // Lower horizontal dead end
-        maze.set_path(17, 17); maze.set_path(18, 17); maze.set_path(19, 17); // Another lower horizontal dead end
-        
-        // Add vertical dead ends
-        maze.set_path(5, 5); maze.set_path(5, 6); maze.set_path(5, 7); // Left vertical dead end
-        maze.set_path(19, 5); maze.set_path(19, 6); maze.set_path(19, 7); // Right vertical dead end
-        
-        maze.set_path(5, 17); maze.set_path(5, 18); maze.set_path(5, 19); // Lower left vertical dead end
-        maze.set_path(19, 17); maze.set_path(19, 18); maze.set_path(19, 19); // Lower right vertical dead end
-        
-        // Add some isolated rooms and complex internal paths
-        maze.set_path(11, 5); maze.set_path(12, 5); maze.set_path(13, 5);
-        maze.set_path(11, 6); maze.set_path(12, 6); maze.set_path(13, 6);
-        maze.set_path(11, 7); maze.set_path(12, 7); maze.set_path(13, 7);
-        
-        maze.set_path(11, 17); maze.set_path(12, 17); maze.set_path(13, 17);
-        maze.set_path(11, 18); maze.set_path(12, 18); maze.set_path(13, 18);
-        maze.set_path(11, 19); maze.set_path(12, 19); maze.set_path(13, 19);
-        
-        // Add more complex internal connections and dead ends
-        maze.set_path(7, 7); maze.set_path(8, 7); maze.set_path(9, 7);
-        maze.set_path(7, 8); maze.set_path(8, 8); maze.set_path(9, 8);
-        maze.set_path(7, 9); maze.set_path(8, 9); maze.set_path(9, 9);
-        
-        maze.set_path(15, 7); maze.set_path(16, 7); maze.set_path(17, 7);
-        maze.set_path(15, 8); maze.set_path(16, 8); maze.set_path(17, 8);
-        maze.set_path(15, 9); maze.set_path(16, 9); maze.set_path(17, 9);
-        
-        // Add some diagonal-like paths for complexity
-        maze.set_path(5, 7); maze.set_path(6, 8); maze.set_path(7, 9);
-        maze.set_path(19, 7); maze.set_path(18, 8); maze.set_path(17, 9);
-        
-        // Add some isolated dead ends in the middle
-        maze.set_path(10, 15); maze.set_path(11, 15); maze.set_path(12, 15);
-        maze.set_path(10, 16); maze.set_path(11, 16); maze.set_path(12, 16);
-        maze.set_path(10, 17); maze.set_path(11, 17); maze.set_path(12, 17);
-        
-        // Ensure there's a clear path from start to exit
-        maze.set_path(1, 1);  // Start point
-        maze.set_exit(23, 23);
-        
-        // Create a guaranteed path from start to exit
-        maze.create_guaranteed_path(1, 1, 23, 23);
+        for &(x, y) in &spawn_points {
+            maze.set_spawn_point(x, y);
+        }
         
         maze
     }
 
-    fn level3() -> Self {
-        let mut maze = Maze::new(5, 5, 3);
+    // Compact zigzag maze - completely unique design
+    fn level3_complex() -> Self {
+        let mut maze = Maze::new(20, 20, 3, "The Zigzag".to_string(), "Compact zigzag maze with tight corridors".to_string(), 12);
         
-        // Complex maze with many dead ends and challenging navigation
-        // Use a recursive backtracking algorithm for proper maze generation
+        // Create a zigzag pattern that fills the maze densely
+        // Start with outer walls
+        for x in 0..20 {
+            maze.set_path(x, 0);
+            maze.set_path(x, 19);
+        }
+        for y in 0..20 {
+            maze.set_path(0, y);
+            maze.set_path(19, y);
+        }
         
-        // Start with all walls
-        for y in 0..maze.height {
-            for x in 0..maze.width {
-                maze.grid[y][x] = Cell::Wall;
+        // Create zigzag corridors
+        for y in 2..18 {
+            if y % 3 == 0 {
+                // Horizontal corridor
+                for x in 2..18 {
+                    maze.set_path(x, y);
+                }
+            } else if y % 3 == 1 {
+                // Vertical corridor on left side
+                for x in 2..10 {
+                    maze.set_path(x, y);
+                }
+            } else {
+                // Vertical corridor on right side
+                for x in 10..18 {
+                    maze.set_path(x, y);
+                }
             }
         }
         
-        // Generate maze using recursive backtracking
+        // Add connecting corridors
+        for x in [5, 15] {
+            for y in 1..19 {
+                maze.set_path(x, y);
+            }
+        }
+        
+        // Add strategic cover points
+        let cover_positions = [
+            (3, 3), (16, 3), (3, 16), (16, 16), // Corner cover
+            (10, 10), // Central cover
+            (7, 7), (12, 7), (7, 12), (12, 12), // Mid-cover
+        ];
+        
+        for &(cx, cy) in &cover_positions {
+            if maze.is_walkable(cx, cy) {
+                maze.set_cover(cx, cy);
+            }
+        }
+        
+        // Strategic spawn points
+        let spawn_points = [
+            (2, 2), (17, 2), (2, 17), (17, 17), // Corners
+            (10, 2), (10, 17), (2, 10), (17, 10), // Mid-sides
+            (5, 5), (14, 5), (5, 14), (14, 14), // Inner corners
+        ];
+        
+        for &(sx, sy) in &spawn_points {
+            if maze.is_walkable(sx, sy) {
+                maze.set_spawn_point(sx, sy);
+            }
+        }
+        
+        maze
+    }
+
+    // Complex maze with multiple layers - good for tactical gameplay
+    fn level4_symmetrical() -> Self {
+        let mut maze = Maze::new(28, 28, 4, "The Labyrinth".to_string(), "Complex multi-layer maze".to_string(), 10);
+        
+        // Create a complex maze using recursive backtracking
         Maze::generate_recursive_maze(&mut maze, 1, 1);
         
-        // Ensure start and exit are accessible
-        maze.set_path(1, 1);
-        let exit_x = maze.width - 3;
-        let exit_y = maze.height - 3;
-        maze.set_exit(exit_x, exit_y);
+        // Add some strategic open areas
+        for x in 8..20 {
+            for y in 8..20 {
+                if maze.grid[y][x] == Cell::Wall {
+                    maze.set_path(x, y);
+                }
+            }
+        }
         
-        // Create a guaranteed path from start to exit
-        maze.create_guaranteed_path(1, 1, exit_x, exit_y);
+        // Add more cover throughout the maze
+        for x in [3, 7, 11, 15, 19, 23] {
+            for y in [3, 7, 11, 15, 19, 23] {
+                if maze.is_walkable(x, y) {
+                    maze.set_cover(x, y);
+                }
+            }
+        }
         
-        // Add some additional complexity with extra dead ends
-        Maze::add_extra_dead_ends(&mut maze);
+        // Find spawn points in walkable areas
+        let mut spawn_count = 0;
+        for y in 0..maze.height {
+            for x in 0..maze.width {
+                if maze.is_walkable(x, y) && spawn_count < 10 {
+                    maze.set_spawn_point(x, y);
+                    spawn_count += 1;
+                }
+            }
+        }
+        
+        maze
+    }
+
+    // Brutal death maze - extremely complex and challenging
+    fn level5_open() -> Self {
+        let mut maze = Maze::new(25, 25, 5, "The Brutal Death Maze".to_string(), "Brutal death maze - extremely complex and challenging".to_string(), 15);
+        
+        // Start with outer walls
+        for x in 0..25 {
+            maze.set_path(x, 0);
+            maze.set_path(x, 24);
+        }
+        for y in 0..25 {
+            maze.set_path(0, y);
+            maze.set_path(24, y);
+        }
+        
+        // Create a brutal death maze with extreme complexity
+        // Layer 1: Create a complex interconnected network
+        // Main horizontal corridors with gaps
+        for y in [2, 6, 10, 14, 18, 22] {
+            for x in 1..24 {
+                if x % 4 != 0 { // Create gaps every 4 cells
+                    maze.set_path(x, y);
+                }
+            }
+        }
+        
+        // Main vertical corridors with gaps
+        for x in [2, 6, 10, 14, 18, 22] {
+            for y in 1..24 {
+                if y % 4 != 0 { // Create gaps every 4 cells
+                    maze.set_path(x, y);
+                }
+            }
+        }
+        
+        // Layer 2: Add diagonal corridors for extreme confusion
+        // Diagonal corridors from top-left to bottom-right
+        for i in 0..20 {
+            let x = 2 + i;
+            let y = 2 + i;
+            if x < 23 && y < 23 {
+                maze.set_path(x, y);
+            }
+        }
+        
+        // Diagonal corridors from top-right to bottom-left
+        for i in 0..20 {
+            let x = 22 - i;
+            let y = 2 + i;
+            if x > 1 && y < 23 {
+                maze.set_path(x, y);
+            }
+        }
+        
+        // Layer 3: Add deadly chokepoints and dead ends
+        // Create deadly chokepoints at intersections
+        for x in [4, 8, 12, 16, 20] {
+            for y in [4, 8, 12, 16, 20] {
+                // Create small dead ends around intersections
+                if x > 1 && x < 23 && y > 1 && y < 23 {
+                    // Add some dead ends
+                    if (x + y) % 3 == 0 {
+                        maze.set_path(x + 1, y);
+                        maze.set_path(x - 1, y);
+                    } else if (x + y) % 3 == 1 {
+                        maze.set_path(x, y + 1);
+                        maze.set_path(x, y - 1);
+                    }
+                }
+            }
+        }
+        
+        // Layer 4: Add extreme complexity with random patterns
+        // Create additional confusing paths
+        for i in 0..15 {
+            let x = 3 + (i * 2) % 20;
+            let y = 3 + (i * 3) % 20;
+            if x < 22 && y < 22 {
+                maze.set_path(x, y);
+                maze.set_path(x + 1, y);
+                maze.set_path(x, y + 1);
+            }
+        }
+        
+        // Layer 5: Add deadly spiral-like patterns in corners
+        // Top-left deadly zone
+        for i in 0..6 {
+            maze.set_path(3 + i, 3);
+            maze.set_path(3, 3 + i);
+        }
+        
+        // Top-right deadly zone
+        for i in 0..6 {
+            maze.set_path(21 - i, 3);
+            maze.set_path(21, 3 + i);
+        }
+        
+        // Bottom-left deadly zone
+        for i in 0..6 {
+            maze.set_path(3 + i, 21);
+            maze.set_path(3, 21 - i);
+        }
+        
+        // Bottom-right deadly zone
+        for i in 0..6 {
+            maze.set_path(21 - i, 21);
+            maze.set_path(21, 21 - i);
+        }
+        
+        // Add extreme cover throughout the maze - much more than level 4
+        for x in [3, 7, 11, 15, 19, 23] {
+            for y in [3, 7, 11, 15, 19, 23] {
+                if maze.is_walkable(x, y) {
+                    maze.set_cover(x, y);
+                }
+            }
+        }
+        
+        // Add additional strategic cover points in key areas
+        let strategic_cover = [
+            // Central death zone
+            (12, 12), (13, 12), (14, 12),
+            (11, 13), (15, 13),
+            (11, 14), (15, 14),
+            (12, 15), (13, 15), (14, 15),
+            
+            // Corner death zones
+            (5, 5), (19, 5), (5, 19), (19, 19),
+            (6, 6), (18, 6), (6, 18), (18, 18),
+            
+            // Mid-side death zones
+            (12, 5), (12, 19), (5, 12), (19, 12),
+            (11, 5), (13, 5), (11, 19), (13, 19),
+            (5, 11), (5, 13), (19, 11), (19, 13),
+            
+            // Internal death zones
+            (10, 10), (14, 10), (10, 14), (14, 14),
+            (11, 11), (13, 11), (11, 13), (13, 13),
+        ];
+        
+        for &(cx, cy) in &strategic_cover {
+            if maze.is_walkable(cx, cy) {
+                maze.set_cover(cx, cy);
+            }
+        }
+        
+        // Find spawn points in walkable areas - much more than level 4
+        let mut spawn_count = 0;
+        for y in 0..maze.height {
+            for x in 0..maze.width {
+                if maze.is_walkable(x, y) && spawn_count < 15 {
+                    maze.set_spawn_point(x, y);
+                    spawn_count += 1;
+                }
+            }
+        }
         
         maze
     }
@@ -331,136 +483,30 @@ impl Maze {
             }
         }
     }
-    
-    fn add_extra_dead_ends(maze: &mut Maze) {
-        // Add many more dead end paths for extra challenge and complexity
-        let dead_end_positions = [
-            // Long horizontal dead ends
-            (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5), (11, 5),
-            (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15),
-            (25, 25), (26, 25), (27, 25), (28, 25), (29, 25),
-            (35, 35), (36, 35), (37, 35), (38, 35),
-            
-            // Long vertical dead ends
-            (5, 5), (5, 6), (5, 7), (5, 8), (5, 9), (5, 10),
-            (15, 15), (15, 16), (15, 17), (15, 18), (15, 19),
-            (25, 25), (25, 26), (25, 27), (25, 28), (25, 29),
-            (35, 35), (35, 36), (35, 37), (35, 38),
-            
-            // Diagonal dead ends
-            (10, 10), (11, 11), (12, 12), (13, 13), (14, 14),
-            (30, 30), (31, 31), (32, 32), (33, 33), (34, 34),
-            
-            // Isolated rooms and areas
-            (8, 8), (8, 9), (8, 10), (9, 8), (9, 9), (9, 10), (10, 8), (10, 9), (10, 10),
-            (18, 18), (18, 19), (18, 20), (19, 18), (19, 19), (19, 20), (20, 18), (20, 19), (20, 20),
-            (28, 28), (28, 29), (28, 30), (29, 28), (29, 29), (29, 30), (30, 28), (30, 29), (30, 30),
-            
-            // Additional scattered dead ends
-            (3, 3), (3, 4), (3, 5), (4, 3), (4, 4), (4, 5),
-            (13, 3), (13, 4), (13, 5), (14, 3), (14, 4), (14, 5),
-            (23, 3), (23, 4), (23, 5), (24, 3), (24, 4), (24, 5),
-            (33, 3), (33, 4), (33, 5), (34, 3), (34, 4), (34, 5),
-            
-            // Lower area dead ends
-            (3, 33), (3, 34), (3, 35), (4, 33), (4, 34), (4, 35),
-            (13, 33), (13, 34), (13, 35), (14, 33), (14, 34), (14, 35),
-            (23, 33), (23, 34), (23, 35), (24, 33), (24, 34), (24, 35),
-            (33, 33), (33, 34), (33, 35), (34, 33), (34, 34), (34, 35),
-        ];
-        
-        for &(x, y) in &dead_end_positions {
-            if x < maze.width && y < maze.height {
-                maze.set_path(x, y);
-            }
-        }
-    }
-    
-    /// Creates a guaranteed path from start to exit with twists and turns
-    fn create_guaranteed_path(&mut self, start_x: usize, start_y: usize, exit_x: usize, exit_y: usize) {
-        // Create a winding path with some randomness to make it more interesting
-        // This ensures there's always a way to win but not in a straight line
-        
-        let mut x = start_x;
-        let mut y = start_y;
-        
-        // Create a zigzag path with some randomness
-        let mut direction: usize = 0; // 0: right, 1: down, 2: left, 3: up
-        
-        while x != exit_x || y != exit_y {
-            let old_x = x;
-            let old_y = y;
-            
-            match direction {
-                0 => { // Right
-                    if x < exit_x && x < self.width - 1 {
-                        x += 1;
-                    } else {
-                        direction = 1; // Switch to down
-                        continue;
-                    }
-                }
-                1 => { // Down
-                    if y < exit_y && y < self.height - 1 {
-                        y += 1;
-                    } else {
-                        direction = 2; // Switch to left
-                        continue;
-                    }
-                }
-                2 => { // Left
-                    if x > exit_x && x > 0 {
-                        x -= 1;
-                    } else {
-                        direction = 3; // Switch to up
-                        continue;
-                    }
-                }
-                3 => { // Up
-                    if y > exit_y && y > 0 {
-                        y -= 1;
-                    } else {
-                        direction = 0; // Switch to right
-                        continue;
-                    }
-                }
-                _ => unreachable!(), // This should never happen with % 4
-            }
-            
-            // Set the path if it's a wall
-            if self.grid[y][x] == Cell::Wall {
-                self.set_path(x, y);
-            }
-            
-            // Occasionally change direction to create more winding paths
-            if (x + y) % 7 == 0 {
-                direction = (direction + 1) % 4;
-            }
-            
-            // If we're stuck, force progress toward exit
-            if x == old_x && y == old_y {
-                if x < exit_x { x += 1; }
-                if y < exit_y { y += 1; }
-                if x > exit_x { x -= 1; }
-                if y > exit_y { y -= 1; }
-                
-                if self.grid[y][x] == Cell::Wall {
-                    self.set_path(x, y);
-                }
-            }
-        }
-    }
 
     pub fn spawn_points(&self, count: usize) -> Vec<(usize, usize)> {
         let mut pts = Vec::with_capacity(count);
         'outer: for y in 0..self.height {
             for x in 0..self.width {
-                if self.grid[y][x] == Cell::Path {
+                if self.grid[y][x] == Cell::SpawnPoint {
                     pts.push((x, y));
                     if pts.len() == count { break 'outer; }
                 }
             }
         }
+        
+        // If not enough spawn points, add walkable areas
+        if pts.len() < count {
+            'outer2: for y in 0..self.height {
+                for x in 0..self.width {
+                    if self.is_walkable(x, y) && !pts.contains(&(x, y)) {
+                        pts.push((x, y));
+                        if pts.len() == count { break 'outer2; }
+                    }
+                }
+            }
+        }
+        
         pts
     }
 
@@ -469,7 +515,7 @@ impl Maze {
         let mut walkable_count = 0;
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.grid[y][x] == Cell::Path {
+                if self.is_walkable(x, y) {
                     walkable_count += 1;
                     if walkable_count >= required_count {
                         return true;
@@ -485,7 +531,7 @@ impl Maze {
         let mut count = 0;
         for y in 0..self.height {
             for x in 0..self.width {
-                if self.grid[y][x] == Cell::Path {
+                if self.is_walkable(x, y) {
                     count += 1;
                 }
             }
@@ -500,11 +546,23 @@ impl Maze {
         let spawn_points_10 = self.spawn_points(10);
         
         println!("=== Multiplayer Support Test ===");
+        println!("Map: {} - {}", self.name, self.description);
         println!("Total walkable cells: {}", total_walkable);
         println!("Can handle 10 players: {}", can_handle_10);
         println!("Available spawn points for 10 players: {}", spawn_points_10.len());
         println!("First 5 spawn points: {:?}", &spawn_points_10[..spawn_points_10.len().min(5)]);
         println!("================================");
+    }
+
+    // Get available levels for selection
+    pub fn get_available_levels() -> Vec<(u8, String, String, u8)> {
+        vec![
+            (1, "The Arena".to_string(), "Close-quarters combat arena".to_string(), 8),
+            (2, "The Corridors".to_string(), "Tactical corridor combat".to_string(), 10),
+            (3, "The Complex".to_string(), "Complex maze with many paths".to_string(), 12),
+            (4, "Symmetry".to_string(), "Symmetrical deathmatch arena".to_string(), 8),
+            (5, "Open Field".to_string(), "Open field for long-range combat".to_string(), 15),
+        ]
     }
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -512,17 +570,30 @@ impl Maze {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////      Payer Logic    ///////////////////////////////////////
+///////////////////////////////////////      Player Logic    ///////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub struct Player {
    pub x: usize,
    pub y: usize,
+   pub health: u8,
+   pub ammo: u8,
+   pub kills: u32,
+   pub deaths: u32,
+   pub last_shot_time: f64,
 }
 
 impl Player {
     pub fn new(x: usize, y: usize) -> Self {
-        Player { x, y }
+        Player { 
+            x, 
+            y, 
+            health: 100,
+            ammo: 30,
+            kills: 0,
+            deaths: 0,
+            last_shot_time: 0.0,
+        }
     }
 
     // Player movement mechanics with collision detection
@@ -554,25 +625,47 @@ impl Player {
         }
     }
 
-    ///////////////////////////////////////      Victorias    ///////////////////////////////////////\
+    // FPS mechanics
+    pub fn take_damage(&mut self, damage: u8) -> bool {
+        if self.health > damage {
+            self.health -= damage;
+            false // Not dead
+        } else {
+            self.health = 0;
+            self.deaths += 1;
+            true // Dead
+        }
+    }
 
-    pub fn at_exit(&self, maze: &Maze) -> bool {
-        maze.grid[self.y][self.x] == Cell::Exit
+    pub fn heal(&mut self, amount: u8) {
+        self.health = (self.health + amount).min(100);
+    }
+
+    pub fn add_ammo(&mut self, amount: u8) {
+        self.ammo = (self.ammo + amount).min(100);
+    }
+
+    pub fn can_shoot(&self, current_time: f64) -> bool {
+        self.ammo > 0 && (current_time - self.last_shot_time) > 0.5 // 0.5 second cooldown
+    }
+
+    pub fn shoot(&mut self, current_time: f64) -> bool {
+        if self.can_shoot(current_time) {
+            self.ammo -= 1;
+            self.last_shot_time = current_time;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn respawn(&mut self, x: usize, y: usize) {
+        self.x = x;
+        self.y = y;
+        self.health = 100;
+        self.ammo = 30;
     }
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////      Payer Logic    ///////////////////////////////////////
+///////////////////////////////////////      Player Logic    ///////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-
