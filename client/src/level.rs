@@ -8,12 +8,18 @@ pub struct Level {
     pub h: usize,
     pub tiles: Vec<u8>, // 0 = floor/path, 1 = wall, 2 = spawn point, 3 = cover
     pub name: String,
-    pub description: String,
+    // pub description: String,
 }
 
 impl Level {
-    pub fn new(w: usize, h: usize, tiles: Vec<u8>, name: String, description: String) -> Self {
-        Self { w, h, tiles, name, description }
+    pub fn new(w: usize, h: usize, tiles: Vec<u8>, name: String) -> Self {
+        Self {
+            w,
+            h,
+            tiles,
+            name,
+            // description,
+        }
     }
 
     // Safe cell access: out-of-bounds are treated as walls
@@ -35,14 +41,14 @@ impl Level {
     }
 
     // Check if position is spawn point
-    pub fn is_spawn_point(&self, x: i32, y: i32) -> bool {
-        self.at(x, y) == 2
-    }
+    // pub fn is_spawn_point(&self, x: i32, y: i32) -> bool {
+    //     self.at(x, y) == 2
+    // }
 
-    // Check if position is cover
-    pub fn is_cover(&self, x: i32, y: i32) -> bool {
-        self.at(x, y) == 3
-    }
+    // // Check if position is cover
+    // pub fn is_cover(&self, x: i32, y: i32) -> bool {
+    //     self.at(x, y) == 3
+    // }
 }
 
 // ---------- Protocol adapter ----------
@@ -61,7 +67,7 @@ pub fn level_from_maze_level(wire: &protocol::MazeLevel) -> Level {
         }
     }
 
-    Level::new(w, h, tiles, wire.name.clone(), wire.description.clone())
+    Level::new(w, h, tiles, wire.name.clone())
 }
 
 // Find a safe spawn position in the level

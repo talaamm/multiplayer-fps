@@ -63,21 +63,6 @@ pub struct MazeLevel {
     pub description: String,
 }
 
-/// Available levels for selection
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LevelList {
-    pub levels: Vec<LevelInfo>,
-}
-
-/// Information about a specific level
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LevelInfo {
-    pub level_id: u32,
-    pub name: String,
-    pub description: String,
-    pub max_players: u8,
-    pub size: (u32, u32),
-}
 
 /// Sent by client to request joining the game.
 /// Contains the desired username.
@@ -151,15 +136,6 @@ pub struct DeathEvent {
     pub weapon: String,
 }
 
-/// Sent when a player respawns
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RespawnEvent {
-    pub player_id: u64,
-    pub x: f32,
-    pub y: f32,
-    pub health: u8,
-    pub ammo: u8,
-}
 
 /// Sent by client to select a level
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,8 +165,6 @@ pub enum ServerToClient {
     Pong(Pong),
     Hit(HitEvent),
     Death(DeathEvent),
-    Respawn(RespawnEvent),
-    LevelList(LevelList),
     Error { message: String },
 }
 

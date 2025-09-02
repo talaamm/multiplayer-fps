@@ -437,10 +437,10 @@ async fn main() {
                                 pos: vec2(p.x, p.y),
                                 angle: p.angle,
                                 name: p.username.clone(),
-                                health: p.health,
-                                ammo: p.ammo,
-                                kills: p.kills,
-                                deaths: p.deaths,
+                                // health: p.health,
+                                // ammo: p.ammo,
+                                // kills: p.kills,
+                                // deaths: p.deaths,
                                 skin: PlayerSkin::from_id(p.player_id),
                             });
                         }
@@ -452,8 +452,8 @@ async fn main() {
                             bullets.push(Bullet {
                                 x: b.x,
                                 y: b.y,
-                                angle: b.angle,
-                                lifetime: b.lifetime,
+                                // angle: b.angle,
+                                // lifetime: b.lifetime,
                             });
                         }
                     }
@@ -466,12 +466,7 @@ async fn main() {
                         println!("💀 {} killed {} with {}", 
                                 death_event.killer_id, death_event.victim_id, death_event.weapon);  // Log death event
                     }
-                    protocol::ServerToClient::Respawn(respawn_event) => {
-                        println!("🔄 Player {} respawned at ({}, {})", 
-                                respawn_event.player_id, respawn_event.x, respawn_event.y);  // Log respawn event
-                    }
-                    
-                    // --- Ping Response ---
+
                     protocol::ServerToClient::Pong(p) => {
                         if let Some(pi) = &mut ping_state {
                             if pi.last_nonce == p.nonce {              // Verify this is our ping response
@@ -528,13 +523,13 @@ async fn main() {
                 let count = others.len() + 1;                     // Total player count (including self)
                 draw_hud(
                     level,
-                    ping_state.map(|p| p.rtt_ms),              // Display ping/latency
-                    &username,                                  // Display username
-                    count,                                      // Display player count
-                    mouse_captured,                             // Show capture status
-                    &player,                                    // Display player stats
-                    has_moved_locally,                          // Show movement status
-                    map_change_mode,                            // Show map change mode status
+                    ping_state.map(|p| p.rtt_ms),
+                    &username,
+                    count,
+                    mouse_captured,
+                    &player,
+                    // has_moved_locally,
+                     map_change_mode,
                 );
                 
                 // Draw crosshair when mouse is captured (FPS mode)

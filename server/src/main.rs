@@ -1,80 +1,10 @@
 mod game {
     pub mod logic;
 }
-use game::logic::{Cell, Maze, Player};
-use std::io::Read;
-
-fn render_with_player(maze: &Maze, px: usize, py: usize) {
-    for y in 0..maze.height {
-        for x in 0..maze.width {
-            if x == px && y == py {
-                print!("P");
-            } else {
-                let ch = match maze.grid[y][x] {
-                    Cell::Wall => '#',
-                    Cell::Path => ' ',
-                    Cell::SpawnPoint => 'S',
-                    Cell::Cover => 'C',
-                };
-                print!("{ch}");
-            }
-        }
-        println!();
-    }
-}
-
-fn main_single_player() {
-    let lvl = 1;
-
-    // choose a level
-    let maze = Maze::load_level(lvl);
-
-    // Test multiplayer support
-    maze.test_multiplayer_support();
-
-    // pick first spawn or fallback
-    let (sx, sy) = maze.spawn_points(1).get(0).copied().unwrap_or((0, 0));
-    let mut p = Player::new(sx, sy);
-
-    println!("Controls: W/A/S/D to move, Q to quit. FPS Deathmatch Mode!\n");
-
-    loop {
-        // clear screen (simple)
-        print!("\x1B[2J\x1B[H"); // ANSI clear + home
-        render_with_player(&maze, p.x, p.y);
-
-        println!("\nPos: ({}, {}). Health: {}, Ammo: {}, Kills: {}, Deaths: {}. Move [W/A/S/D], Quit [Q]: ", 
-                 p.x, p.y, p.health, p.ammo, p.kills, p.deaths);
-
-        // non-blocking single-char read (simple blocking read fallback)
-        let mut buf = [0u8; 1];
-        if std::io::stdin().read_exact(&mut buf).is_err() {
-            break;
-        }
-        let c = (buf[0] as char).to_ascii_lowercase();
-
-        match c {
-            'w' => p.move_up(&maze),
-            's' => p.move_down(&maze),
-            'a' => p.move_left(&maze),
-            'd' => p.move_right(&maze),
-            'q' => break,
-            _ => {}
-        }
-    }
-}
+use game::logic::{Cell, Maze};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Check if user wants single-player mode
-    let args: Vec<String> = std::env::args().collect();
-
-    if args.len() > 1 && args[1] == "--single-player" {
-        main_single_player();
-        return Ok(());
-    }
-
-    // Run multiplayer server by default
     main_multiplayer().await
 }
 
@@ -103,7 +33,7 @@ async fn main_multiplayer() -> anyhow::Result<()> {
         let socket_send = std::sync::Arc::clone(&socket);
         tokio::spawn(async move {
             while let Some((addr, msg)) = rx_out.recv().await {
-                if let Ok(bytes) = encode_server(&msg) {
+                if let Ok(bytes) = protocol::encode_server(&msg) {
                     let _ = socket_send.send_to(&bytes, addr).await;
                 }
             }
@@ -377,7 +307,7 @@ impl ServerState {
     fn handle_input(
         &mut self,
         input: protocol::InputUpdate,
-        tx_out: &tokio::sync::mpsc::UnboundedSender<(
+        _tx_out: &tokio::sync::mpsc::UnboundedSender<(
             std::net::SocketAddr,
             protocol::ServerToClient,
         )>,
@@ -407,11 +337,11 @@ impl ServerState {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64();
-                
+
                 if p.ammo > 0 && (current_time - p.last_shot_time) > 0.5 {
                     p.ammo -= 1;
                     p.last_shot_time = current_time;
-                    
+
                     // Create bullet
                     let bullet = BulletInfo {
                         bullet_id: self.next_bullet_id,
@@ -454,14 +384,15 @@ impl ServerState {
             // Check if bullet hit a wall
             let gx = bullet.x.floor() as usize;
             let gy = bullet.y.floor() as usize;
-            if gx >= self.logic_maze.width || gy >= self.logic_maze.height || 
-               !self.logic_maze.is_walkable(gx, gy) {
+            if gx >= self.logic_maze.width
+                || gy >= self.logic_maze.height
+                || !self.logic_maze.is_walkable(gx, gy)
+            {
                 bullets_to_remove.push(i);
                 continue;
             }
 
             // Check if bullet hit a player
-            let mut hit_player = false;
             for (player_id, player) in self.players.iter_mut() {
                 if *player_id == bullet.shooter_id {
                     continue; // Can't hit yourself
@@ -471,7 +402,8 @@ impl ServerState {
                 let dy = bullet.y - player.pos_y;
                 let distance = (dx * dx + dy * dy).sqrt();
 
-                if distance < 0.5 { // Hit radius
+                if distance < 0.5 {
+                    // Hit radius
                     // Player hit!
                     let was_alive = player.health > 0;
                     if player.health > bullet.damage {
@@ -499,7 +431,6 @@ impl ServerState {
                         respawn_events.push((*player_id, *player_id));
                     }
 
-                    hit_player = true;
                     bullets_to_remove.push(i);
                     break;
                 }
@@ -524,7 +455,7 @@ impl ServerState {
         for _ in 0..respawn_events.len() {
             respawn_positions.push(self.next_spawn());
         }
-        
+
         for ((player_id, _), (sx, sy)) in respawn_events.iter().zip(respawn_positions.iter()) {
             if let Some(player) = self.players.get_mut(player_id) {
                 player.pos_x = *sx;
@@ -566,27 +497,33 @@ impl ServerState {
             protocol::ServerToClient,
         )>,
     ) {
-        println!("🎯 SERVER: Changing to level {} ({} -> {})", level_id, self.logic_maze.name, self.logic_maze.level_id);
-        
+        println!(
+            "🎯 SERVER: Changing to level {} ({} -> {})",
+            level_id, self.logic_maze.name, self.logic_maze.level_id
+        );
+
         // Load new maze
         self.logic_maze = Maze::load_level(level_id as u8);
         self.wire_level = maze_to_protocol(level_id, &self.logic_maze);
-        
-        println!("✅ SERVER: Loaded level {}: '{}' ({}x{})", level_id, self.logic_maze.name, self.logic_maze.width, self.logic_maze.height);
-        
+
+        println!(
+            "✅ SERVER: Loaded level {}: '{}' ({}x{})",
+            level_id, self.logic_maze.name, self.logic_maze.width, self.logic_maze.height
+        );
+
         // Update spawn points
         self.spawns = self.logic_maze.spawn_points(128);
         self.spawn_cursor = 0;
-        
+
         // Clear bullets
         self.bullets.clear();
-        
+
         // Collect spawn positions first to avoid borrowing issues
         let mut spawn_positions = Vec::new();
         for _ in 0..self.players.len() {
             spawn_positions.push(self.next_spawn());
         }
-        
+
         // Respawn all players
         for ((player_id, player), (sx, sy)) in self.players.iter_mut().zip(spawn_positions.iter()) {
             player.pos_x = *sx;
@@ -595,18 +532,21 @@ impl ServerState {
             player.ammo = 30;
             player.angle = 0.0;
         }
-        
+
         // Send new level to all clients
         let level_msg = protocol::ServerToClient::Accept(protocol::JoinAccept {
             player_id: 0, // Special ID for level change
             level: self.wire_level.clone(),
         });
-        
+
         for addr in self.addr_by_player.values() {
             let _ = _tx_out.send((*addr, level_msg.clone()));
         }
-        
-        println!("📤 SERVER: Sent level change to {} clients", self.addr_by_player.len());
+
+        println!(
+            "📤 SERVER: Sent level change to {} clients",
+            self.addr_by_player.len()
+        );
     }
 }
 
@@ -635,7 +575,3 @@ fn maze_to_protocol(level_id: u32, m: &Maze) -> protocol::MazeLevel {
     }
 }
 
-// Helper function to encode server messages
-fn encode_server(msg: &protocol::ServerToClient) -> Result<Vec<u8>, protocol::ProtocolError> {
-    protocol::encode_server(msg)
-}
